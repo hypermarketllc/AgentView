@@ -1,0 +1,82 @@
+# Example Docker Compose override file
+# Copy this file to docker-compose.override.yml and customize as needed
+
+version: '3.8'
+
+services:
+  # Application service overrides
+  app:
+    # Example: Mount source code for development
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+    # Example: Override environment variables
+    environment:
+      - NODE_ENV=development
+      - DEBUG=app:*
+    # Example: Override ports
+    ports:
+      - "3001:3000"
+    # Example: Override healthcheck
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Example: Override resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Database service overrides
+  db:
+    # Example: Mount additional initialization scripts
+    volumes:
+      - ./custom-scripts:/docker-entrypoint-initdb.d/custom
+    # Example: Override environment variables
+    environment:
+      - POSTGRES_PASSWORD=custom_password
+    # Example: Override ports
+    ports:
+      - "5433:5432"
+    # Example: Override resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # Example: Add additional services
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - crm-network
+
+  # Example: Add Redis for caching
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - crm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+# Additional volumes
+volumes:
+  redis-data:
+    driver: local

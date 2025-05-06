@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: crm-app-dev
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=development
+      - VITE_SUPABASE_URL=https://esmboovriahdhtvvxgzn.supabase.co
+      - VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbWJvb3ZyaWFoZGh0dnZ4Z3puIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3MzAwMTgsImV4cCI6MjA2MDMwNjAxOH0.8t1o1yk8ozklE5ltv3mNV7LHKnKZe9kdNzFTd29klIA
+      - VITE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzbWJvb3ZyaWFoZGh0dnZ4Z3puIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDczMDAxOCwiZXhwIjoyMDYwMzA2MDE4fQ.ba6BXQqd0_NpYEKIF_qUxHuOjNJKXO_-AOnZmHL4AxA
+      - JWT_SECRET=your_jwt_secret
+      # Database connection
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=crm_db
+      - POSTGRES_USER=crm_user
+      - POSTGRES_PASSWORD=localpassword
+      # Flag to enable PostgreSQL instead of Supabase
+      - USE_POSTGRES=true
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /app/dist
+    networks:
+      - crm-network-dev
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/crm/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  db:
+    image: postgres:15-alpine
+    container_name: crm-db-dev
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=crm_db
+      - POSTGRES_USER=crm_user
+      - POSTGRES_PASSWORD=localpassword
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql/data
+      - ./supabase-export/create_tables.sql:/docker-entrypoint-initdb.d/01-create_tables.sql
+      - ./supabase-export/create_auth_tables.sql:/docker-entrypoint-initdb.d/02-create_auth_tables.sql
+      - ./supabase-export/insert_data.sql:/docker-entrypoint-initdb.d/03-insert_data.sql
+      - ./setup-db-permissions.sql:/docker-entrypoint-initdb.d/04-setup-permissions.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - crm-network-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm_user -d crm_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  crm-network-dev:
+    driver: bridge
+
+volumes:
+  postgres-data-dev:
+    driver: local

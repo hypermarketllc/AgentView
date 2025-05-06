@@ -17,13 +17,13 @@ GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO crm_user;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Create a test user for login
-INSERT INTO users (id, email, password, full_name, position_id)
+-- Create a test user for login (without password column)
+INSERT INTO users (id, email, full_name, position_id, is_active)
 VALUES (
   '00000000-0000-0000-0000-000000000000',
   'admin@example.com',
-  '$2a$10$JqmNvHv7VcU1nP0Oc0YVN.zUmA5TJi.ZM53pzCGw6u7qWoYFHOEGi',  -- password: admin123
   'Admin User',
-  (SELECT id FROM positions WHERE name = 'Owner' LIMIT 1)
+  (SELECT id FROM positions WHERE name = 'Owner' LIMIT 1),
+  true
 )
 ON CONFLICT (id) DO NOTHING;

@@ -1,0 +1,51 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Node.js
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Build artifacts
+dist
+build
+*.tsbuildinfo
+
+# Docker
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Development files
+.vscode
+.idea
+*.log
+logs
+*.md
+LICENSE
+
+# Test files
+coverage
+*.test.js
+*.spec.js
+test
+tests
+
+# Temporary files
+tmp
+temp
+.DS_Store
+Thumbs.db
+
+# Large files
+*.gz
+*.zip
+*.tar
+*.tgz
+
+# Database files
+*.sqlite
+*.db
