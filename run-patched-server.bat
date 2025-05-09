@@ -1,0 +1,3 @@
+@echo off
+echo Running patched server...
+node run-patched-server.js

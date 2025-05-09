@@ -3,7 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../contexts/PermissionContext';
 import { useQuery } from 'react-query';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 import {
   Home,
   Users,
@@ -33,14 +33,13 @@ const DashboardLayout = () => {
   const location = useLocation();
 
   const { data: settings } = useQuery<SystemSettings>('settings', async () => {
-    const { data, error } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'system_settings')
-      .single();
-    
-    if (error) throw error;
-    return data?.value as SystemSettings;
+    try {
+      const response = await api.get('/settings/system');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching system settings:', error);
+      return { name: 'MyAgentView' };
+    }
   });
 
   const handleLogout = async () => {

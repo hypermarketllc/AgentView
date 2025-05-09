@@ -23,13 +23,28 @@ export interface AuthUser {
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
 const SALT_ROUNDS = 10;
 
-// Generate JWT token
-export const generateToken = (user: { id: string; email: string }): string => {
-  return jwt.sign(
+// Generate JWT tokens
+export const generateTokens = (user: { id: string; email: string }): { accessToken: string; refreshToken: string } => {
+  // Access token - short lived (24 hours)
+  const accessToken = jwt.sign(
     { userId: user.id, email: user.email },
     JWT_SECRET,
     { expiresIn: '24h' }
   );
+  
+  // Refresh token - longer lived (7 days)
+  const refreshToken = jwt.sign(
+    { userId: user.id, email: user.email, tokenType: 'refresh' },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+  
+  return { accessToken, refreshToken };
+};
+
+// Generate JWT token (legacy function for backward compatibility)
+export const generateToken = (user: { id: string; email: string }): string => {
+  return generateTokens(user).accessToken;
 };
 
 // Verify JWT token
@@ -86,9 +101,11 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
     );
     
     if (result.rows.length === 0) {
+      console.log(`No user found with email: ${email}`);
       return null;
     }
     
+    console.log(`Found user with email ${email}:`, result.rows[0]);
     return result.rows[0] as User;
   } catch (error) {
     console.error('Error getting user by email:', error);
@@ -99,15 +116,18 @@ export const getUserByEmail = async (email: string): Promise<User | null> => {
 // Get auth user by email
 export const getAuthUserByEmail = async (email: string): Promise<AuthUser | null> => {
   try {
+    console.log(`Looking up auth user by email: ${email}`);
     const result = await pool.query(
       'SELECT * FROM auth_users WHERE email = $1',
       [email]
     );
     
     if (result.rows.length === 0) {
+      console.log(`No auth user found with email: ${email}`);
       return null;
     }
     
+    console.log(`Found auth user with email ${email}:`, result.rows[0]);
     return result.rows[0] as AuthUser;
   } catch (error) {
     console.error('Error getting auth user by email:', error);
@@ -121,13 +141,13 @@ export const createUser = async (
   password: string,
   fullName: string,
   positionId: string
-): Promise<{ user: User | null; token: string | null; error: string | null }> => {
+): Promise<{ user: User | null; token: string | null; refreshToken: string | null; error: string | null }> => {
   try {
     // Check if user already exists
     const existingUser = await getUserByEmail(email);
     
     if (existingUser) {
-      return { user: null, token: null, error: 'User already exists' };
+      return { user: null, token: null, refreshToken: null, error: 'User already exists' };
     }
     
     // Hash password
@@ -158,19 +178,44 @@ export const createUser = async (
     const user = await getUserById(userId);
     
     if (!user) {
-      return { user: null, token: null, error: 'Failed to create user' };
+      return { user: null, token: null, refreshToken: null, error: 'Failed to create user' };
     }
     
-    // Generate token
-    const token = generateToken({ id: userId, email });
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens({ id: userId, email });
     
-    return { user, token, error: null };
+    return { user, token: accessToken, refreshToken, error: null };
   } catch (error) {
     // Rollback transaction
     await pool.query('ROLLBACK');
     
     console.error('Error creating user:', error);
-    return { user: null, token: null, error: 'Failed to create user' };
+    return { user: null, token: null, refreshToken: null, error: 'Failed to create user' };
+  }
+};
+
+// Refresh token
+export const refreshToken = async (refreshToken: string): Promise<{ token: string | null; refreshToken: string | null; error: string | null }> => {
+  try {
+    // Call the refresh token endpoint
+    const response = await fetch('/crm/api/auth/refresh', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken }),
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return { token: null, refreshToken: null, error: data.error || 'Failed to refresh token' };
+    }
+    
+    return { token: data.token, refreshToken: data.refreshToken, error: null };
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    return { token: null, refreshToken: null, error: 'Failed to refresh token' };
   }
 };
 
@@ -178,17 +223,21 @@ export const createUser = async (
 export const loginUser = async (
   email: string,
   password: string
-): Promise<{ user: User | null; token: string | null; error: string | null }> => {
+): Promise<{ user: User | null; token: string | null; refreshToken: string | null; error: string | null }> => {
   try {
-    // Special case for test account
-    if (email === 'agent@example.com' && password === 'Agent123!') {
+    console.log(`Login attempt for: ${email}`);
+    // Special case for test account in development mode only
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    if (isDevelopment && email === 'agent@example.com' && password === 'Agent123!') {
+      console.log('Processing test account login');
       // Get agent position
       const positionResult = await pool.query(
         'SELECT id FROM positions WHERE level = 1 LIMIT 1'
       );
       
       if (positionResult.rows.length === 0) {
-        return { user: null, token: null, error: 'Agent position not found' };
+        return { user: null, token: null, refreshToken: null, error: 'Agent position not found' };
       }
       
       const positionId = positionResult.rows[0].id;
@@ -208,42 +257,47 @@ export const loginUser = async (
       }
       
       if (!user) {
-        return { user: null, token: null, error: 'Failed to create test user' };
+        return { user: null, token: null, refreshToken: null, error: 'Failed to create test user' };
       }
       
-      // Generate token
-      const token = generateToken({ id: user.id, email });
+      // Generate tokens
+      const { accessToken, refreshToken } = generateTokens({ id: user.id, email });
       
-      return { user, token, error: null };
+      return { user, token: accessToken, refreshToken, error: null };
+    }
+    
+    // Get user first
+    const user = await getUserByEmail(email);
+    
+    if (!user) {
+      console.log(`Login failed: No user found with email ${email}`);
+      return { user: null, token: null, refreshToken: null, error: 'Account not found. Please check your email or register.' };
     }
     
     // Get auth user
     const authUser = await getAuthUserByEmail(email);
     
     if (!authUser) {
-      return { user: null, token: null, error: 'Invalid credentials' };
+      console.error(`Authentication error: User ${email} exists but has no auth record`);
+      return { user: null, token: null, refreshToken: null, error: 'Authentication error. Please contact support.' };
     }
     
     // Verify password
     const passwordMatch = await verifyPassword(password, authUser.password_hash);
     
     if (!passwordMatch) {
-      return { user: null, token: null, error: 'Invalid credentials' };
+      console.log(`Login failed: Invalid password for ${email}`);
+      return { user: null, token: null, refreshToken: null, error: 'Invalid password. Please try again.' };
     }
     
-    // Get user
-    const user = await getUserById(authUser.id);
+    console.log(`Login successful for ${email}`);
     
-    if (!user) {
-      return { user: null, token: null, error: 'User not found' };
-    }
+    // Generate tokens
+    const { accessToken, refreshToken } = generateTokens({ id: user.id, email });
     
-    // Generate token
-    const token = generateToken({ id: user.id, email });
-    
-    return { user, token, error: null };
+    return { user, token: accessToken, refreshToken, error: null };
   } catch (error) {
     console.error('Error logging in:', error);
-    return { user: null, token: null, error: 'Failed to login' };
+    return { user: null, token: null, refreshToken: null, error: 'Failed to login' };
   }
 };

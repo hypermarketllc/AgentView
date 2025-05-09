@@ -617,3 +617,46 @@ const createPostgresCompatClient = () => {
           return Promise.resolve({ 
             data: { 
               session: { 
+                access_token: localStorage.getItem('auth_token'),
+                refresh_token: localStorage.getItem('refresh_token'),
+                user: null // Will be populated by getCurrentUser if needed
+              } 
+            }, 
+            error: null 
+          });
+        } else {
+          return Promise.resolve({ data: { session: null }, error: null });
+        }
+      },
+      onAuthStateChange: (callback: (event: string, session: any) => void) => {
+        console.log('Auth API: onAuthStateChange called');
+        // This is a no-op in our implementation
+        return { data: { subscription: { unsubscribe: () => {} } } };
+      }
+    }
+  };
+};
+
+// Import auth API
+import { authAPI } from './api';
+
+// Determine which client to use
+let supabase;
+
+// If using PostgreSQL, create a compatibility layer
+if (usePostgres) {
+  console.log('Using PostgreSQL instead of Supabase');
+  supabase = createPostgresCompatClient();
+} else {
+  // Use actual Supabase client
+  const supabaseUrl = getEnv('VITE_SUPABASE_URL') || '';
+  const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY') || '';
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+
+  supabase = createClient(supabaseUrl, supabaseAnonKey);
+}
+
+export { supabase };

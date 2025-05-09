@@ -1,218 +1,291 @@
 # Docker Deployment Guide for MyAgentView CRM
 
-This guide provides instructions for deploying the MyAgentView CRM application using Docker in both local development and production environments.
+This guide provides comprehensive instructions for deploying the MyAgentView CRM application using Docker. We've created different deployment options to accommodate various needs:
 
-## Prerequisites
+1. **Production Deployment** (Recommended): A full-stack deployment with both frontend and backend services, along with a PostgreSQL database.
+2. **Nginx Static Deployment**: A lightweight deployment that serves only the frontend static files using Nginx.
+3. **Local Development Deployment**: A development setup with hot-reloading and debugging capabilities.
 
-- Docker and Docker Compose installed
-- Git (to clone the repository)
-- Basic knowledge of Docker and containerization
+## Option 1: Production Deployment (Recommended)
 
-## Local Development Deployment
+This deployment option includes both the frontend and backend services, along with a PostgreSQL database. It's designed for production use with proper security, performance, and reliability considerations.
 
-### Step 1: Clone the Repository
+### Files
 
-```bash
-git clone <repository-url>
-cd myagentview-crm
-```
+- `Dockerfile.backend`: Dockerfile for the backend server
+- `server-docker.js`: Backend server implementation using Express.js
+- `docker-compose.prod.yml`: Docker Compose configuration for the production deployment
+- `run-prod.sh` / `run-prod.bat`: Helper scripts for Unix/Windows
 
-### Step 2: Configure Environment Variables
+### Deployment Steps
 
-Create a `.env.local` file in the root directory with the following variables:
+1. **Start the production Docker containers**:
 
-```
-# Database connection
-POSTGRES_DB=crm_db
-POSTGRES_USER=crm_user
-POSTGRES_PASSWORD=localpassword
+   **For Windows:**
+   ```
+   .\run-prod.bat
+   ```
 
-# JWT Secret
-JWT_SECRET=local_jwt_secret
+   **For Unix-based systems (Linux/macOS):**
+   ```bash
+   chmod +x run-prod.sh
+   ./run-prod.sh
+   ```
 
-# Server settings
-PORT=3000
-BASE_URL=http://localhost:3000/crm
-```
+2. **Access the application**:
+   
+   Open your browser and navigate to:
+   ```
+   http://localhost:3000/crm
+   ```
 
-### Step 3: Run the Application
+3. **Default admin account**:
+   ```
+   Email: admin@example.com
+   Password: Admin123!
+   ```
 
-#### On Linux/macOS:
+4. **View logs**:
+   ```
+   docker-compose -f docker-compose.prod.yml logs -f app
+   ```
 
-```bash
-chmod +x run-local.sh
-./run-local.sh
-```
+5. **Stop the application**:
+   ```
+   docker-compose -f docker-compose.prod.yml down
+   ```
 
-#### On Windows:
+## Option 2: Nginx Static Deployment
 
-```
-run-local.bat
-```
+This deployment option serves the frontend static files using Nginx. It's lightweight and fast, but doesn't include a backend server.
 
-This will:
-1. Build the Docker images
-2. Start the containers
-3. Initialize the database
-4. Start the application
+### Files
 
-### Step 4: Access the Application
+- `Dockerfile.nginx`: Multi-stage Dockerfile that builds the frontend and serves it using Nginx
+- `nginx.conf`: Nginx configuration file
+- `docker-compose.nginx.yml`: Docker Compose configuration for the Nginx deployment
+- `run-nginx.sh` / `run-nginx.bat`: Helper scripts for Unix/Windows
 
-Once the application is running, you can access it at:
+### Deployment Steps
 
-```
-http://localhost:3000/crm
-```
+1. **Start the Nginx Docker container**:
 
-Use the default test account:
-- Email: agent@example.com
-- Password: Agent123!
+   **For Windows:**
+   ```
+   .\run-nginx.bat
+   ```
 
-### Step 5: Stop the Application
+   **For Unix-based systems (Linux/macOS):**
+   ```bash
+   chmod +x run-nginx.sh
+   ./run-nginx.sh
+   ```
 
-To stop the application:
+2. **Access the application**:
+   
+   Open your browser and navigate to:
+   ```
+   http://localhost/crm
+   ```
 
-```bash
-docker-compose -f docker-compose.local.yml down
-```
+3. **View logs**:
+   ```
+   docker-compose -f docker-compose.nginx.yml logs -f nginx
+   ```
 
-## Production Deployment
+4. **Stop the application**:
+   ```
+   docker-compose -f docker-compose.nginx.yml down
+   ```
 
-### Step 1: Clone the Repository
+## Option 3: Local Development Deployment
 
-```bash
-git clone <repository-url>
-cd myagentview-crm
-```
+This deployment option is designed for local development with hot-reloading and debugging capabilities.
 
-### Step 2: Configure Environment Variables
+### Files
 
-Create a `.env.production` file in the root directory with the following variables:
+- `Dockerfile.local`: Dockerfile for the local development deployment
+- `docker-compose.local.yml`: Docker Compose configuration for the local development deployment
+- `run-local.sh` / `run-local.bat`: Helper scripts for Unix/Windows
 
-```
-# Database connection
-POSTGRES_DB=crm_db
-POSTGRES_USER=crm_user
-POSTGRES_PASSWORD=<strong-password>
+### Deployment Steps
 
-# JWT Secret
-JWT_SECRET=<strong-jwt-secret>
+1. **Start the local development Docker containers**:
 
-# Server settings
-PORT=3000
-APP_PORT=3000
-DB_PORT=5432
-```
+   **For Windows:**
+   ```
+   .\run-local.bat
+   ```
 
-Replace `<strong-password>` and `<strong-jwt-secret>` with secure values.
+   **For Unix-based systems (Linux/macOS):**
+   ```bash
+   chmod +x run-local.sh
+   ./run-local.sh
+   ```
 
-### Step 3: Build and Run the Application
+2. **Access the application**:
+   
+   Open your browser and navigate to:
+   ```
+   http://localhost:3000/crm
+   ```
 
-```bash
-docker-compose --env-file .env.production up -d --build
-```
+3. **View logs**:
+   ```
+   docker-compose -f docker-compose.local.yml logs -f app
+   ```
 
-### Step 4: Access the Application
+4. **Stop the application**:
+   ```
+   docker-compose -f docker-compose.local.yml down
+   ```
 
-Once the application is running, you can access it at:
+## Production Deployment Considerations
 
-```
-http://<your-server-ip>:3000/crm
-```
+For deploying to a production environment, consider the following:
 
-### Step 5: Monitor the Application
+1. **Security**:
+   
+   - Use strong, unique passwords for the database and JWT secret
+   - Update the `docker-compose.prod.yml` file to use environment variables for sensitive information:
+     ```yaml
+     environment:
+       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+       JWT_SECRET: ${JWT_SECRET}
+     ```
+   - Use Docker secrets for sensitive information in a swarm deployment
+   - Configure SSL/TLS for secure communication
 
-To view the logs:
+2. **Performance**:
+   
+   - Adjust the PostgreSQL configuration for better performance based on your server's resources
+   - Consider using a reverse proxy like Nginx or Traefik in front of the application
+   - Implement caching strategies for frequently accessed data
 
-```bash
-docker-compose logs -f
-```
+3. **Reliability**:
+   
+   - Set up regular database backups
+   - Implement monitoring and alerting
+   - Configure proper logging and log rotation
+   - Use Docker's restart policies for automatic recovery
 
-To check the status of the containers:
+4. **Scaling**:
+   
+   - Consider using Docker Swarm or Kubernetes for orchestration
+   - Implement load balancing for horizontal scaling
+   - Use a separate database server for high-traffic applications
 
-```bash
-docker-compose ps
-```
+## SSL/TLS Configuration
 
-### Step 6: Stop the Application
+For production deployments, you should configure SSL/TLS for secure communication. Here's how to do it:
 
-To stop the application:
+1. **Obtain SSL certificates**:
+   
+   You can use Let's Encrypt to obtain free SSL certificates:
+   
+   ```bash
+   certbot certonly --standalone -d your-domain.com
+   ```
 
-```bash
-docker-compose down
-```
+2. **Update the Docker Compose file**:
+   
+   ```yaml
+   volumes:
+     - /etc/letsencrypt:/etc/letsencrypt
+   ports:
+     - "443:3000"
+   ```
 
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| POSTGRES_DB | PostgreSQL database name | crm_db |
-| POSTGRES_USER | PostgreSQL username | crm_user |
-| POSTGRES_PASSWORD | PostgreSQL password | - |
-| JWT_SECRET | Secret key for JWT authentication | - |
-| PORT | Port for the application | 3000 |
-| APP_PORT | External port for the application | 3000 |
-| DB_PORT | External port for the database | 5432 |
-
-## Docker Compose Configuration
-
-The application uses two Docker Compose files:
-
-- `docker-compose.local.yml`: For local development
-- `docker-compose.yml`: For production deployment
-
-Both configurations include:
-
-1. **Application Container**:
-   - Node.js application
-   - Serves the frontend and API
-   - Connects to the database
-
-2. **Database Container**:
-   - PostgreSQL database
-   - Persistent volume for data storage
-   - Initialization scripts for database setup
+3. **Configure the application to use HTTPS**:
+   
+   Update the `server-docker.js` file to use HTTPS:
+   
+   ```javascript
+   import https from 'https';
+   import fs from 'fs';
+   
+   const options = {
+     key: fs.readFileSync('/etc/letsencrypt/live/your-domain.com/privkey.pem'),
+     cert: fs.readFileSync('/etc/letsencrypt/live/your-domain.com/fullchain.pem')
+   };
+   
+   https.createServer(options, app).listen(PORT, () => {
+     console.log(`Server running on port ${PORT}`);
+   });
+   ```
 
 ## Troubleshooting
 
-### Database Connection Issues
+### Common Issues
 
-If the application cannot connect to the database:
-
-1. Check if the database container is running:
-   ```bash
-   docker-compose ps
+1. **Port conflicts**:
+   
+   If you have port conflicts (e.g., port 80 or 3000 is already in use), modify the port mappings in the Docker Compose file:
+   
+   ```yaml
+   ports:
+     - "8080:3000"  # Map container port 3000 to host port 8080
    ```
 
-2. Check the database logs:
-   ```bash
-   docker-compose logs db
+2. **Database connection issues**:
+   
+   If you're having database connection issues, check the database logs:
+   
+   ```
+   docker-compose -f docker-compose.prod.yml logs -f db
    ```
 
-3. Verify the environment variables are correctly set.
-
-### Application Startup Issues
-
-If the application fails to start:
-
-1. Check the application logs:
-   ```bash
-   docker-compose logs app
+3. **Container fails to start**:
+   
+   Check the logs:
+   
+   ```
+   docker-compose -f docker-compose.prod.yml logs
    ```
 
-2. Verify the database is properly initialized:
+4. **Volume permissions**:
+   
+   If you encounter permission issues with volumes:
+   
    ```bash
-   docker-compose exec db psql -U crm_user -d crm_db -c "\dt"
+   # Fix permissions for PostgreSQL data directory
+   docker-compose -f docker-compose.prod.yml down
+   sudo chown -R $USER:$USER ./postgres-data-prod
+   docker-compose -f docker-compose.prod.yml up -d
    ```
 
-3. Check if the required environment variables are set.
+## Docker Commands Reference
 
-## Security Considerations
+- **Build and start containers**:
+  ```
+  docker-compose -f docker-compose.prod.yml up -d --build
+  ```
 
-For production deployments:
+- **Stop containers**:
+  ```
+  docker-compose -f docker-compose.prod.yml down
+  ```
 
-1. Use strong passwords for the database
-2. Use a strong JWT secret
-3. Consider using a reverse proxy (like Nginx) for SSL termination
-4. Restrict access to the database port (5432)
-5. Regularly update the Docker images
+- **View logs**:
+  ```
+  docker-compose -f docker-compose.prod.yml logs -f
+  ```
+
+- **Check container status**:
+  ```
+  docker-compose -f docker-compose.prod.yml ps
+  ```
+
+- **Execute command in container**:
+  ```
+  docker-compose -f docker-compose.prod.yml exec app sh
+  ```
+
+- **Restart container**:
+  ```
+  docker-compose -f docker-compose.prod.yml restart app
+  ```
+
+## Conclusion
+
+This guide provides comprehensive instructions for deploying the MyAgentView CRM application using Docker. If you encounter any issues or have questions, please refer to the troubleshooting section or contact the development team.

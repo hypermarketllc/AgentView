@@ -25,6 +25,51 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Add response interceptor to handle token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If the error is 401 (Unauthorized) and we haven't tried to refresh the token yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Get refresh token from localStorage
+        const refreshToken = localStorage.getItem('refresh_token');
+        
+        if (!refreshToken) {
+          // No refresh token, logout
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('refresh_token');
+          return Promise.reject(error);
+        }
+        
+        // Call refresh token endpoint
+        const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        
+        // Save new tokens
+        localStorage.setItem('auth_token', response.data.token);
+        localStorage.setItem('refresh_token', response.data.refreshToken);
+        
+        // Update Authorization header
+        originalRequest.headers.Authorization = `Bearer ${response.data.token}`;
+        
+        // Retry the original request
+        return axios(originalRequest);
+      } catch (refreshError) {
+        // Refresh token failed, logout
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('refresh_token');
+        return Promise.reject(error);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 // Types
 export interface User {
   id: string;
@@ -81,9 +126,13 @@ export const authAPI = {
   login: async (email: string, password: string) => {
     const response = await api.post('/auth/login', { email, password });
     
-    // Save token to localStorage
+    // Save tokens to localStorage
     if (response.data.token) {
       localStorage.setItem('auth_token', response.data.token);
+    }
+    
+    if (response.data.refreshToken) {
+      localStorage.setItem('refresh_token', response.data.refreshToken);
     }
     
     return response.data;
@@ -92,19 +141,45 @@ export const authAPI = {
   register: async (email: string, password: string, fullName: string) => {
     const response = await api.post('/auth/register', { email, password, fullName });
     
-    // Save token to localStorage
+    // Save tokens to localStorage
     if (response.data.token) {
       localStorage.setItem('auth_token', response.data.token);
+    }
+    
+    if (response.data.refreshToken) {
+      localStorage.setItem('refresh_token', response.data.refreshToken);
     }
     
     return response.data;
   },
   
   logout: async () => {
-    // Remove token from localStorage
+    // Remove tokens from localStorage
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
     
     return { success: true };
+  },
+  
+  refreshToken: async () => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    
+    const response = await api.post('/auth/refresh', { refreshToken });
+    
+    // Save new tokens
+    if (response.data.token) {
+      localStorage.setItem('auth_token', response.data.token);
+    }
+    
+    if (response.data.refreshToken) {
+      localStorage.setItem('refresh_token', response.data.refreshToken);
+    }
+    
+    return response.data;
   },
   
   getCurrentUser: async () => {

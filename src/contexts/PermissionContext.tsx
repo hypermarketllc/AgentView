@@ -1,7 +1,7 @@
 import React, { createContext, useContext } from 'react';
 import { useQuery } from 'react-query';
 import { useAuth } from './AuthContext';
-import { supabase } from '../lib/supabase';
+import api, { positionsAPI } from '../lib/api';
 
 type Permission = {
   section: string;
@@ -35,29 +35,16 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       
       try {
-        // First get the user's position_id
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, email, position_id')
-          .eq('id', user.id)
-          .single();
+        // Get the current user with position details
+        const userData = await api.get('/auth/me');
         
-        if (userError) {
-          console.error("Error fetching user data:", userError);
-          throw userError;
+        if (!userData.data || !userData.data.position) {
+          console.error("Error fetching user data: No position found");
+          throw new Error("No position found for user");
         }
         
-        // Then get the position details
-        const { data: positionData, error: positionError } = await supabase
-          .from('positions')
-          .select('id, name, level')
-          .eq('id', userData.position_id)
-          .single();
-        
-        if (positionError) {
-          console.error("Error fetching position data:", positionError);
-          throw positionError;
-        }
+        // Extract position data
+        const positionData = userData.data.position;
         
         // Extract position data
         const positionName = positionData?.name?.toLowerCase() || 'agent';

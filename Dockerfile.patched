@@ -1,0 +1,29 @@
+# Dockerfile.patched
+# Docker image with the robust patch applied
+
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variable to indicate we're running in Docker
+ENV RUNNING_IN_DOCKER=true
+
+# Copy package files and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Copy application files
+COPY . .
+
+# Build the frontend
+RUN npm run build
+
+# Apply the robust patch
+RUN node apply-robust-patch.js
+
+# Expose the port
+EXPOSE 3000
+
+# Start the server
+CMD ["node", "server-docker-index.js"]

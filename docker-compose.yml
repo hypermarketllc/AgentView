@@ -18,10 +18,10 @@ services:
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-crm_db}
       - POSTGRES_USER=${POSTGRES_USER:-crm_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_strong_password_here}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_strongtt_password_here}
       - JWT_SECRET=${JWT_SECRET:-your_jwt_secret}
     ports:
-      - "${APP_PORT:-3000}:3000"
+      - "${APP_PORT:-3001}:3000"
     networks:
       - crm-network
     healthcheck:
@@ -51,7 +51,7 @@ services:
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-crm_db}
       - POSTGRES_USER=${POSTGRES_USER:-crm_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_strong_password_here}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-your_strongtt_password_here}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./supabase-export/create_tables.sql:/docker-entrypoint-initdb.d/01-create_tables.sql
@@ -59,7 +59,7 @@ services:
       - ./supabase-export/insert_data.sql:/docker-entrypoint-initdb.d/03-insert_data.sql
       - ./setup-db-permissions.sql:/docker-entrypoint-initdb.d/04-setup-permissions.sql
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-5433}:5432"
     networks:
       - crm-network
     healthcheck:

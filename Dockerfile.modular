@@ -1,0 +1,43 @@
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV RUNNING_IN_DOCKER=true
+
+# Copy package.json and package-lock.json
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application files
+COPY . .
+
+# Copy our fix files
+COPY docker-path-to-regexp-fix.mjs ./
+COPY path-to-regexp-patch-esm.js ./
+
+# Copy our modularized server files
+COPY server-docker-core.js ./
+COPY server-docker-db.js ./
+COPY server-docker-auth.js ./
+COPY server-docker-routes.js ./
+COPY server-docker-static.js ./
+COPY server-docker-index.js ./
+
+# Copy health check script
+COPY docker-healthcheck.sh /usr/local/bin/docker-healthcheck
+RUN chmod +x /usr/local/bin/docker-healthcheck
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD [ "/usr/local/bin/docker-healthcheck" ]
+
+# Start the application with our modularized server
+CMD ["node", "server-docker-index.js"]

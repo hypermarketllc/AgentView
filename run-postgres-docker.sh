@@ -1,36 +1,29 @@
 #!/bin/bash
-# Script to run the MyAgentView CRM application with PostgreSQL using Docker
 
-# Set script to exit on error
-set -e
-
-# Display banner
-echo "====================================="
-echo "  MyAgentView CRM - PostgreSQL Docker"
-echo "====================================="
-echo
-
-# Check if Docker is installed
-if ! command -v docker > /dev/null 2>&1; then
-  echo "Error: Docker is not installed. Please install it and try again."
-  exit 1
+# Check if .env file exists, if not create from example
+if [ ! -f .env ]; then
+  if [ -f .env.postgres.example ]; then
+    echo "Creating .env file from .env.postgres.example..."
+    cp .env.postgres.example .env
+  else
+    echo "Warning: .env.postgres.example not found. Please create a .env file manually."
+  fi
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose > /dev/null 2>&1; then
-  echo "Error: Docker Compose is not installed. Please install it and try again."
-  exit 1
-fi
+# Build the frontend
+echo "Building frontend..."
+npm run build
 
-# Build and start the containers
-echo "Building and starting the Docker containers..."
-docker-compose -f docker-compose.dev.yml up --build -d
+# Set environment variables for PostgreSQL
+export USE_POSTGRES=true
+export VITE_USE_POSTGRES=true
+export NODE_ENV=development
 
-# Display information
-echo
-echo "PostgreSQL server is running!"
-echo "Access the application at: http://localhost:3000/crm"
-echo
-echo "To view logs, run: docker-compose -f docker-compose.dev.yml logs -f app"
-echo "To stop the server, run: docker-compose -f docker-compose.dev.yml down"
-echo
+# Apply deep patch to path-to-regexp
+echo "Applying deep patch to path-to-regexp library..."
+node path-to-regexp-deep-patch.mjs
+
+# Start the server
+echo "Starting server with PostgreSQL..."
+echo "Using path-to-regexp patch to handle invalid route patterns..."
+node server-postgres-docker.js

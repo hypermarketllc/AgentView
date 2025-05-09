@@ -1,0 +1,16 @@
+@echo off
+echo Stopping specific containers...
+docker stop crm-app crm-db
+docker rm crm-app crm-db
+
+echo Copying fixed Dockerfile...
+copy Dockerfile.fixed Dockerfile
+
+echo Rebuilding Docker image with path-to-regexp fix...
+docker-compose build app
+
+echo Creating and starting containers with fixed configuration...
+docker-compose up -d
+
+echo Showing container logs (press Ctrl+C to exit)...
+docker-compose logs -f
