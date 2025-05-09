@@ -249,4 +249,22 @@ export const positionsAPI = {
   }
 };
 
+// User Settings API
+export const userSettingsAPI = {
+  getSettings: async () => {
+    const response = await api.get('/user/settings');
+    return response.data;
+  },
+  
+  updateSettings: async (settings: any) => {
+    const response = await api.put('/user/settings', settings);
+    return response.data;
+  },
+  
+  updatePassword: async (password: string) => {
+    const response = await api.put('/user/password', { password });
+    return response.data;
+  }
+};
+
 export default api;

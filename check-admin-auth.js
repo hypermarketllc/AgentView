@@ -1,101 +1,198 @@
-// Script to check and fix admin authentication
+/**
+ * check-admin-auth.js
+ * 
+ * A script to test admin authentication with the PostgreSQL database.
+ * This verifies that the authentication system is working properly
+ * after migrating from Supabase to PostgreSQL.
+ */
+
+// Import required modules
 import pg from 'pg';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
-// Get current file directory (ES modules equivalent of __dirname)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load environment variables
+// Initialize dotenv
 dotenv.config();
 
 const { Pool } = pg;
-const SALT_ROUNDS = 10;
+
+// Get database connection parameters from environment variables
+const host = process.env.POSTGRES_HOST || 'localhost';
+const port = parseInt(process.env.POSTGRES_PORT || '5432');
+const database = process.env.POSTGRES_DB || 'crm_db';
+const user = process.env.POSTGRES_USER || 'crm_user';
+const password = process.env.POSTGRES_PASSWORD;
+const jwtSecret = process.env.JWT_SECRET || 'your_jwt_secret';
 
 // Create a connection pool
 const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'crm_db',
-  user: process.env.POSTGRES_USER || 'crm_user',
-  password: process.env.POSTGRES_PASSWORD || 'your_strong_password_here'
+  host,
+  port,
+  database,
+  user,
+  password
 });
 
-async function checkAndFixAdminAuth() {
+// Test admin authentication
+async function testAdminAuth() {
+  console.log('Testing admin authentication with PostgreSQL...');
+  
   try {
-    console.log('Checking admin authentication...');
+    // Check if admin user exists
+    const adminCheckResult = await pool.query(`
+      SELECT u.*, p.name as position_name, p.level as position_level 
+      FROM users u
+      JOIN positions p ON u.position_id = p.id
+      WHERE u.email = 'admin@example.com'
+    `);
     
-    // Check if admin@americancoveragecenter.com exists in users table
-    const userResult = await pool.query(
-      'SELECT * FROM users WHERE email = $1',
-      ['admin@americancoveragecenter.com']
-    );
-    
-    if (userResult.rows.length === 0) {
-      console.error('Error: admin@americancoveragecenter.com not found in users table');
-      return;
+    if (adminCheckResult.rows.length === 0) {
+      console.log('\n⚠️ Admin user not found. Creating admin user...');
+      
+      // Get default position (highest level)
+      const positionResult = await pool.query(`
+        SELECT id FROM positions 
+        ORDER BY level DESC 
+        LIMIT 1
+      `);
+      
+      if (positionResult.rows.length === 0) {
+        throw new Error('No positions found in the database');
+      }
+      
+      const positionId = positionResult.rows[0].id;
+      
+      // Hash password
+      const saltRounds = 10;
+      const passwordHash = await bcrypt.hash('admin123', saltRounds);
+      
+      // Insert admin user
+      const insertResult = await pool.query(`
+        INSERT INTO users (
+          id, email, password_hash, full_name, position_id, is_active, created_at, updated_at
+        ) VALUES (
+          gen_random_uuid(), 'admin@example.com', $1, 'Admin User', $2, true, NOW(), NOW()
+        ) RETURNING id, email, full_name, position_id
+      `, [passwordHash, positionId]);
+      
+      console.log('✅ Admin user created successfully:');
+      console.log(insertResult.rows[0]);
+      
+      // Get admin user with position
+      const adminResult = await pool.query(`
+        SELECT u.*, p.name as position_name, p.level as position_level 
+        FROM users u
+        JOIN positions p ON u.position_id = p.id
+        WHERE u.email = 'admin@example.com'
+      `);
+      
+      const admin = adminResult.rows[0];
+      console.log('\nAdmin user details:');
+      console.log(`- ID: ${admin.id}`);
+      console.log(`- Email: ${admin.email}`);
+      console.log(`- Name: ${admin.full_name}`);
+      console.log(`- Position: ${admin.position_name} (Level ${admin.position_level})`);
+    } else {
+      const admin = adminCheckResult.rows[0];
+      console.log('\n✅ Admin user found:');
+      console.log(`- ID: ${admin.id}`);
+      console.log(`- Email: ${admin.email}`);
+      console.log(`- Name: ${admin.full_name}`);
+      console.log(`- Position: ${admin.position_name} (Level ${admin.position_level})`);
     }
     
-    const userId = userResult.rows[0].id;
-    console.log(`Found admin user with ID: ${userId}`);
+    // Test login with admin credentials
+    console.log('\nTesting admin login...');
     
-    // Check if admin exists in auth_users table
-    const authResult = await pool.query(
-      'SELECT * FROM auth_users WHERE email = $1',
-      ['admin@americancoveragecenter.com']
-    );
+    // Get admin user
+    const loginResult = await pool.query(`
+      SELECT u.*, p.name as position_name, p.level as position_level 
+      FROM users u
+      JOIN positions p ON u.position_id = p.id
+      WHERE u.email = 'admin@example.com'
+    `);
     
-    if (authResult.rows.length === 0) {
-      console.log('Admin not found in auth_users table. Creating entry...');
+    if (loginResult.rows.length === 0) {
+      throw new Error('Admin user not found');
+    }
+    
+    const adminUser = loginResult.rows[0];
+    
+    // Check if we need to update the password for testing
+    let passwordUpdated = false;
+    if (!adminUser.password_hash) {
+      console.log('⚠️ Admin user has no password. Setting default password...');
       
-      // Hash the password
-      const password = 'Discord101!';
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      // Hash password
+      const saltRounds = 10;
+      const passwordHash = await bcrypt.hash('admin123', saltRounds);
       
-      // Insert into auth_users
-      await pool.query(
-        'INSERT INTO auth_users (id, email, password_hash) VALUES ($1, $2, $3)',
-        [userId, 'admin@americancoveragecenter.com', passwordHash]
+      // Update admin user password
+      await pool.query(`
+        UPDATE users 
+        SET password_hash = $1 
+        WHERE id = $2
+      `, [passwordHash, adminUser.id]);
+      
+      passwordUpdated = true;
+      console.log('✅ Admin password updated');
+    }
+    
+    // Verify password
+    const passwordMatch = passwordUpdated || await bcrypt.compare('admin123', adminUser.password_hash);
+    
+    if (!passwordMatch) {
+      console.log('❌ Password verification failed');
+      
+      // Reset password for testing
+      console.log('Resetting admin password for testing...');
+      
+      // Hash password
+      const saltRounds = 10;
+      const passwordHash = await bcrypt.hash('admin123', saltRounds);
+      
+      // Update admin user password
+      await pool.query(`
+        UPDATE users 
+        SET password_hash = $1 
+        WHERE id = $2
+      `, [passwordHash, adminUser.id]);
+      
+      console.log('✅ Admin password reset');
+    } else {
+      console.log('✅ Password verification successful');
+      
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId: adminUser.id, email: adminUser.email },
+        jwtSecret,
+        { expiresIn: '24h' }
       );
       
-      console.log('Admin auth entry created successfully');
-    } else {
-      console.log('Admin found in auth_users table. Updating password...');
+      console.log('\n✅ JWT token generated successfully');
+      console.log('Token:', token);
       
-      // Update password hash
-      const password = 'Discord101!';
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      
-      await pool.query(
-        'UPDATE auth_users SET password_hash = $1 WHERE email = $2',
-        [passwordHash, 'admin@americancoveragecenter.com']
-      );
-      
-      console.log('Admin password updated successfully');
+      // Verify JWT token
+      try {
+        const decoded = jwt.verify(token, jwtSecret);
+        console.log('\n✅ JWT token verification successful');
+        console.log('Decoded token:', decoded);
+      } catch (error) {
+        console.error('\n❌ JWT token verification failed:', error.message);
+      }
     }
     
-    // Verify the auth_users entry
-    const verifyResult = await pool.query(
-      'SELECT * FROM auth_users WHERE email = $1',
-      ['admin@americancoveragecenter.com']
-    );
-    
-    if (verifyResult.rows.length > 0) {
-      console.log('Verification successful. Admin auth entry exists.');
-      console.log('Auth user details:', verifyResult.rows[0]);
-    } else {
-      console.error('Verification failed. Admin auth entry not found after update.');
-    }
   } catch (error) {
-    console.error('Error checking/fixing admin auth:', error);
+    console.error('\n❌ Authentication test failed!');
+    console.error('Error details:', error.message);
+    console.error(error);
   } finally {
     // Close the pool
     await pool.end();
+    console.log('\nConnection pool closed.');
   }
 }
 
-// Run the function
-checkAndFixAdminAuth();
+// Run the test
+testAdminAuth();

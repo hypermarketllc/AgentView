@@ -1,94 +1,151 @@
-# PostgreSQL Migration Documentation Overview
+# PostgreSQL Migration Documentation
 
-This document provides an overview of the documentation created for the PostgreSQL migration project.
+This document outlines the changes made to migrate the application from Supabase to a PostgreSQL database.
 
-## Documentation Files
+## Overview
 
-We have created several documentation files to cover different aspects of the PostgreSQL migration:
+The application was previously using Supabase as its database backend. To improve flexibility and control, we've migrated to a direct PostgreSQL database connection. This migration involved:
 
-1. **POSTGRES_MIGRATION_FIXES.md** - Overview of the issues encountered and fixes implemented
-2. **MIME_TYPE_FIX_TECHNICAL.md** - Technical details of the MIME type fixes
-3. **POSTGRES_QUICKSTART.md** - Quick start guide for running the application with PostgreSQL
-4. **POSTGRES_DOCKER_GUIDE.md** - Guide for deploying the application with PostgreSQL using Docker
+1. Setting up PostgreSQL connection configuration
+2. Creating server-side API endpoints for database operations
+3. Updating frontend components to use the new API endpoints
+4. Ensuring authentication works properly with the new database
 
-## Documentation Purpose
+## Database Connection Setup
 
-Each document serves a specific purpose:
+The PostgreSQL connection is configured in `src/lib/postgres.ts`:
 
-| Document | Purpose | Target Audience |
-|----------|---------|----------------|
-| POSTGRES_MIGRATION_FIXES.md | Provides an overview of the issues encountered during migration and the solutions implemented | Project managers, developers |
-| MIME_TYPE_FIX_TECHNICAL.md | Explains the technical details of the MIME type fixes for maintenance and future development | Developers, technical leads |
-| POSTGRES_QUICKSTART.md | Offers simple instructions for running the application with PostgreSQL | End users, system administrators |
-| POSTGRES_DOCKER_GUIDE.md | Provides Docker-specific deployment instructions | DevOps engineers, system administrators |
+```typescript
+import { Pool, QueryResult } from 'pg';
 
-## Key Issues Addressed
+// Create a connection pool
+const pool = new Pool({
+  host: process.env.POSTGRES_HOST || 'localhost',
+  port: parseInt(process.env.POSTGRES_PORT || '5432'),
+  database: process.env.POSTGRES_DB || 'crm_db',
+  user: process.env.POSTGRES_USER || 'crm_user',
+  password: process.env.POSTGRES_PASSWORD || 'your_strong_password_here'
+});
 
-The documentation covers the following key issues:
+// Test database connection
+pool.query('SELECT NOW()', (err: Error | null, res: QueryResult<any>) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    console.log('Database connected:', res.rows[0]);
+  }
+});
 
-1. **MIME Type Errors**: JavaScript modules failing to load due to incorrect MIME types
-2. **Path-to-RegExp Warnings**: Warnings related to route pattern handling
-3. **Database Migration**: Steps to migrate from Supabase to PostgreSQL
-4. **Docker Deployment**: Options for deploying with Docker
+export default pool;
+```
 
-## Solutions Implemented
+## Authentication Changes
 
-The solutions implemented include:
+Authentication has been updated to work with PostgreSQL instead of Supabase:
 
-1. **Multi-layered MIME Type Fix**:
-   - Server-side header setting
-   - Client-side fetch patching
-   - HTML response modification
+1. The `src/lib/auth.ts` file now uses the PostgreSQL pool for user authentication
+2. JWT token generation and verification remain the same
+3. User data is now fetched directly from the PostgreSQL database
 
-2. **Path-to-RegExp Patch**:
-   - Applied patch to handle invalid route patterns
+### Server-Side Authentication Routes
 
-3. **Run Scripts**:
-   - Created convenient scripts for running the application with all fixes
+Authentication routes were added to `server-docker-auth.js`:
 
-4. **Docker Configurations**:
-   - Development setup
-   - Production setup
-   - All-in-One setup
+- `/crm/api/auth/login` - Handles user login
+- `/crm/api/auth/register` - Handles user registration
+- `/crm/api/auth/me` - Gets the current authenticated user
 
-## How to Use This Documentation
+## API Endpoints
 
-### For New Users
+New API endpoints were added to handle various operations:
 
-1. Start with **POSTGRES_QUICKSTART.md** for basic setup instructions
-2. If using Docker, refer to **POSTGRES_DOCKER_GUIDE.md**
+### User Settings API
 
-### For Developers
+Added to `server-docker-routes.js`:
 
-1. Read **POSTGRES_MIGRATION_FIXES.md** for an overview of the issues and solutions
-2. Dive into **MIME_TYPE_FIX_TECHNICAL.md** for technical details
+- `GET /crm/api/user/settings` - Retrieves user settings
+- `PUT /crm/api/user/settings` - Updates user settings
+- `PUT /crm/api/user/password` - Updates user password
 
-### For DevOps Engineers
+These endpoints are used by the frontend to manage user settings.
 
-1. Use **POSTGRES_DOCKER_GUIDE.md** for Docker deployment options
-2. Reference **MIME_TYPE_FIX_TECHNICAL.md** for understanding the technical aspects of the fixes
+## Frontend Changes
 
-## Files Created/Modified
+### API Client
 
-### New Files
+The `src/lib/api.ts` file was updated to include new API methods for user settings:
 
-1. **inject-mime-fix.js** - MIME type fix implementation
-2. **run-fixed-postgres-docker.js** - Node.js run script
-3. **run-fixed-postgres-docker.sh** - Unix shell run script
-4. **run-fixed-postgres-docker.bat** - Windows batch run script
+```typescript
+// User Settings API
+export const userSettingsAPI = {
+  getSettings: async () => {
+    const response = await api.get('/user/settings');
+    return response.data;
+  },
+  
+  updateSettings: async (settings: any) => {
+    const response = await api.put('/user/settings', settings);
+    return response.data;
+  },
+  
+  updatePassword: async (password: string) => {
+    const response = await api.put('/user/password', { password });
+    return response.data;
+  }
+};
+```
 
-### Modified Files
+### Components
 
-1. **server-postgres-docker.js** - Updated to use MIME type fixes
+The `UserSettings.tsx` component was updated to use the new API endpoints instead of direct Supabase calls:
 
-## Next Steps
+1. Removed all direct Supabase client imports and calls
+2. Updated to use the `userSettingsAPI` methods for fetching and updating user data
+3. Modified the component to work with the data structure returned by the PostgreSQL API
 
-After reviewing the documentation, you can:
+## Database Schema
 
-1. Follow the instructions in **POSTGRES_QUICKSTART.md** to run the application locally
-2. Use **POSTGRES_DOCKER_GUIDE.md** to deploy the application with Docker
-3. Refer to **MIME_TYPE_FIX_TECHNICAL.md** if you need to maintain or extend the MIME type fixes
+The database schema remains largely the same, with tables for:
 
-## Conclusion
+- `users` - User information
+- `auth_users` - Authentication information
+- `user_accs` - User account settings
+- `positions` - User positions
+- `deals` - Deal information
+- `carriers` - Carrier information
+- `products` - Product information
 
-The PostgreSQL migration has been successfully completed with fixes for the MIME type issues that were preventing the frontend from loading correctly. The documentation provides comprehensive guidance for running, deploying, and maintaining the application with PostgreSQL.
+## Environment Variables
+
+The following environment variables are used for PostgreSQL configuration:
+
+- `POSTGRES_HOST` - PostgreSQL host (default: 'localhost')
+- `POSTGRES_PORT` - PostgreSQL port (default: '5432')
+- `POSTGRES_DB` - PostgreSQL database name (default: 'crm_db')
+- `POSTGRES_USER` - PostgreSQL username (default: 'crm_user')
+- `POSTGRES_PASSWORD` - PostgreSQL password
+
+## Testing
+
+To test the PostgreSQL connection, you can use:
+
+```bash
+node check-postgres-connection.js
+```
+
+To test user authentication with PostgreSQL:
+
+```bash
+node check-admin-auth.js
+```
+
+## Troubleshooting
+
+If you encounter issues with the PostgreSQL migration, check:
+
+1. Database connection parameters in `.env` or `.env.local`
+2. PostgreSQL server is running and accessible
+3. Database schema is properly set up (see `supabase-export/create_tables.sql`)
+4. User permissions are correctly configured (see `setup-db-permissions.sql`)
+
+For more detailed troubleshooting, refer to `POSTGRES_MIGRATION_TROUBLESHOOTING.md`.

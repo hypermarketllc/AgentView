@@ -7,6 +7,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import pg from 'pg';
+import { setupApiRoutes } from './server-docker-routes.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -463,6 +464,9 @@ app.get('/', (req, res) => {
 async function start() {
   try {
     await initializeDatabase();
+    
+    // Setup API routes from server-docker-routes.js
+    setupApiRoutes(app, pool, authenticateToken);
     
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);

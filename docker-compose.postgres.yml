@@ -2,57 +2,35 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15
-    container_name: crm-postgres
+    image: postgres:14
+    container_name: agentview-postgres
     restart: always
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
-      POSTGRES_USER: ${POSTGRES_USER:-crm_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_strong_password_here}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agentview
+      # Add these to improve startup reliability
+      POSTGRES_HOST_AUTH_METHOD: trust
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./supabase-export/create_tables.sql:/docker-entrypoint-initdb.d/01-create_tables.sql
-      - ./supabase-export/create_auth_tables.sql:/docker-entrypoint-initdb.d/02-create_auth_tables.sql
-      - ./supabase-export/insert_data.sql:/docker-entrypoint-initdb.d/03-insert_data.sql
-      - ./setup-db-permissions.sql:/docker-entrypoint-initdb.d/04-setup-permissions.sql
+      - postgres-data-new:/var/lib/postgresql/data
+      - ./supabase-export:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crm_user} -d ${POSTGRES_DB:-crm_db}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.postgres
-    container_name: crm-backend-postgres
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-crm_db}
-      POSTGRES_USER: ${POSTGRES_USER:-crm_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_strong_password_here}
-      JWT_SECRET: ${JWT_SECRET:-your_jwt_secret}
-      PORT: 3000
-      NODE_ENV: ${NODE_ENV:-production}
-      BASE_PATH: /crm
-      API_URL: /crm/api
-      USE_POSTGRES: "true"
-      VITE_USE_POSTGRES: "true"
-    ports:
-      - "3000:3000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/crm/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
+    # Add resource limits to ensure stability
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
 volumes:
-  postgres-data:
+  postgres-data-new:
+    driver: local

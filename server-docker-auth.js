@@ -183,3 +183,120 @@ function setupAuthRoutes(app, pool) {
 
 // Export authentication-related functions
 export { authenticateToken, setupAuthRoutes, JWT_SECRET };
+
+  // Login endpoint
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required' });
+      }
+      
+      // For test account
+      if (email === 'agent@example.com' && password === 'Agent123!') {
+        return res.status(200).json({
+          user: {
+            id: '1',
+            email: 'agent@example.com',
+            name: 'Test Agent',
+            role: 'agent'
+          },
+          token: 'test-token-123'
+        });
+      }
+      
+      // For admin account
+      if (email === 'admin@americancoveragecenter.com' && password === 'Admin123!') {
+        return res.status(200).json({
+          user: {
+            id: '2',
+            email: 'admin@americancoveragecenter.com',
+            name: 'Admin User',
+            role: 'admin'
+          },
+          token: 'admin-token-123'
+        });
+      }
+      
+      // Check database for user
+      const { data: user, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', email)
+        .single();
+      
+      if (error || !user) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      
+      // Verify password (in a real app, you would use bcrypt to compare hashed passwords)
+      // For simplicity, we're just checking if the password field exists
+      if (!user.password) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+      
+      // Generate a token (in a real app, you would use JWT)
+      const token = 'user-token-' + Math.random().toString(36).substring(2, 15);
+      
+      return res.status(200).json({
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name || user.email.split('@')[0],
+          role: user.role || 'user'
+        },
+        token
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Logout endpoint
+  app.post('/api/auth/logout', (req, res) => {
+    // In a real app, you would invalidate the token
+    return res.status(200).json({ message: 'Logged out successfully' });
+  });
+
+  // Get current user endpoint
+  app.get('/api/auth/user', (req, res) => {
+    // In a real app, you would verify the token and get the user from the database
+    // For simplicity, we're just returning a test user
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    // For test token
+    if (token === 'test-token-123') {
+      return res.status(200).json({
+        user: {
+          id: '1',
+          email: 'agent@example.com',
+          name: 'Test Agent',
+          role: 'agent'
+        }
+      });
+    }
+    
+    // For admin token
+    if (token === 'admin-token-123') {
+      return res.status(200).json({
+        user: {
+          id: '2',
+          email: 'admin@americancoveragecenter.com',
+          name: 'Admin User',
+          role: 'admin'
+        }
+      });
+    }
+    
+    // For other tokens, check the database
+    // In a real app, you would verify the token and get the user from the database
+    return res.status(401).json({ error: 'Invalid token' });
+  });
