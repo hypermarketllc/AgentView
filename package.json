@@ -4,7 +4,7 @@
   "description": "MyAgentView CRM System",
   "type": "module",
   "scripts": {
-    "dev": "node run-dev.js",
+    "dev": "cross-env DETECT_NODE_PRE_GYP=false node run-dev.js",
     "start": "node server.js",
     "check-db": "node check-db-connection.js",
     "check-admin": "node check-admin-auth.js",
@@ -20,6 +20,7 @@
     "bcrypt": "^5.1.0",
     "chalk": "^5.4.1",
     "cors": "^2.8.5",
+    "detect-libc": "^2.0.2",
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.0",
@@ -27,6 +28,9 @@
     "node-fetch": "^3.3.2",
     "pg": "^8.10.0",
     "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   },
   "engines": {
     "node": ">=14.0.0"
