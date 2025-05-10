@@ -1,7 +1,3 @@
-// Disable detect-libc functionality
-process.env.DETECT_NODE_PRE_GYP = 'false';
-process.env.DETECT_LIBC = 'false';
-
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
@@ -11,6 +7,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import cors from 'cors';
+import { createMimeFixMiddleware, createDirectMimeTypeMiddleware } from './inject-mime-fix.js';
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
@@ -28,6 +25,9 @@ const SALT_ROUNDS = 10;
 // Middleware
 app.use(cors());
 app.use(express.json());
+// Add MIME type fix middleware
+app.use(createDirectMimeTypeMiddleware());
+app.use(createMimeFixMiddleware());
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Supabase environment variables
