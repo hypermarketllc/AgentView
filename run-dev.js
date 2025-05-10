@@ -1,5 +1,6 @@
 // Disable detect-libc functionality
 process.env.DETECT_NODE_PRE_GYP = 'false';
+process.env.DETECT_LIBC = 'false';
 
 import express from 'express';
 import path from 'path';
