@@ -1,20 +1,12 @@
 {
   "name": "myagentview-crm",
   "version": "1.0.0",
-  "description": "MyAgentView CRM System",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node run-dev.js",
-    "start": "node server.js",
-    "check-db": "node check-db-connection.js",
-    "check-admin": "node check-admin-auth.js",
-    "postgres": "node server-postgres.js",
-    "postgres-docker": "node server-postgres-docker.js",
-    "postgres-module-fix": "node server-postgres-module-fix.js",
+    "dev": "node --no-warnings run-dev.js",
     "build": "vite build",
-    "apply-patch": "node apply-robust-patch.js",
-    "modular-server": "node run-modular-server.js",
-    "patched-server": "node run-patched-server.js"
+    "preview": "vite preview"
   },
   "dependencies": {
     "axios": "^1.9.0",
