@@ -64,8 +64,12 @@ async function main() {
     console.log('Step 5: Applying user object structure normalizer...');
     await runScript(join(__dirname, 'fix-user-object-structure.mjs'));
     
+    // Apply position API compatibility fix
+    console.log('Step 6: Applying position API compatibility fix...');
+    await runScript(join(__dirname, 'fix-position-api-compatibility.mjs'));
+    
     // Then, start the server
-    console.log('Step 6: Starting authentication server...');
+    console.log('Step 7: Starting authentication server...');
     await runScript(join(__dirname, 'run_server_with_auth.mjs'));
     
   } catch (error) {
