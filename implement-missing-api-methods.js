@@ -1,585 +1,1004 @@
 /**
  * implement-missing-api-methods.js
  * 
- * This script implements the missing API methods for the system_health_checks,
- * user_accs, and settings tables. It adds the necessary routes to the server
- * to handle DELETE and INSERT operations for these tables.
+ * This script implements the missing API methods for:
+ * - system_health_checks (insert, delete)
+ * - user_accs (CRUD operations)
+ * - settings (CRUD operations)
  */
 
 import fs from 'fs';
 import path from 'path';
-import chalk from 'chalk';
+import { v4 as uuidv4 } from 'uuid';
 
-// Helper function to log success
-function logSuccess(message) {
-  console.log(chalk.green('✅ ' + message));
-}
+// Path to API endpoints configuration
+const apiEndpointsPath = './src/config/api-endpoints.js';
+// Path to API service
+const apiServicePath = './src/services/api-service.js';
+// Path to route handlers
+const handlersPath = './src/handlers';
 
-// Helper function to log error
-function logError(message) {
-  console.error(chalk.red('❌ ' + message));
-}
-
-// Helper function to log info
-function logInfo(message) {
-  console.log(chalk.blue('ℹ️ ' + message));
-}
-
-// Helper function to log warning
-function logWarning(message) {
-  console.log(chalk.yellow('⚠️ ' + message));
-}
-
-// Path to the handlers directory
-const handlersDir = path.join('src', 'handlers');
-const systemStatusHandlersPath = path.join(handlersDir, 'system-status-handlers.js');
-const userSettingsHandlersPath = path.join(handlersDir, 'user-settings-handlers.js');
-const settingsHandlersPath = path.join(handlersDir, 'settings-handlers.js');
-
-// Path to the API registry file
-const apiRegistryPath = path.join('src', 'config', 'api-registry.js');
-
-// Create the user-settings-handlers.js file if it doesn't exist
-function createUserSettingsHandlers() {
-  logInfo('Creating user settings handlers...');
+// Main function to implement missing API methods
+async function implementMissingApiMethods() {
+  console.log('Implementing missing API methods...');
   
-  const userSettingsHandlersContent = `/**
- * User Settings Handlers
+  try {
+    // Create handlers directory if it doesn't exist
+    if (!fs.existsSync(handlersPath)) {
+      fs.mkdirSync(handlersPath, { recursive: true });
+      console.log(`Created directory: ${handlersPath}`);
+    }
+    
+    // Create config directory if it doesn't exist
+    const configDir = path.dirname(apiEndpointsPath);
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+      console.log(`Created directory: ${configDir}`);
+    }
+    
+    // Create services directory if it doesn't exist
+    const servicesDir = path.dirname(apiServicePath);
+    if (!fs.existsSync(servicesDir)) {
+      fs.mkdirSync(servicesDir, { recursive: true });
+      console.log(`Created directory: ${servicesDir}`);
+    }
+    
+    // Implement API endpoints configuration
+    implementApiEndpoints();
+    
+    // Implement API service
+    implementApiService();
+    
+    // Implement handlers
+    implementSystemHealthChecksHandler();
+    implementUserAccsHandler();
+    implementSettingsHandler();
+    implementIndexHandler();
+    
+    console.log('Missing API methods implemented successfully.');
+  } catch (error) {
+    console.error('Error implementing missing API methods:', error);
+  }
+}
+
+// Function to implement API endpoints configuration
+function implementApiEndpoints() {
+  console.log('Implementing API endpoints configuration...');
+  
+  const apiEndpoints = `/**
+ * api-endpoints.js
  * 
- * This module provides handlers for user settings API endpoints.
+ * This file defines the API endpoints for the application.
  */
 
-import { pool } from '../lib/postgres.js';
-import { handleError } from '../lib/error-handler.js';
-
-/**
- * Get user settings for the authenticated user
- */
-export async function getUserSettings(req, res) {
-  try {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    const result = await pool.query(
-      'SELECT * FROM user_accs WHERE user_id = $1',
-      [userId]
-    );
-    
-    if (result.rows.length === 0) {
-      // Create default settings if none exist
-      const defaultSettings = {
-        theme: 'light',
-        notification_preferences: { email: true, sms: false, push: true },
-        dashboard_layout: { layout: 'default', widgets: ['deals', 'notifications'] }
-      };
-      
-      const insertResult = await pool.query(
-        \`INSERT INTO user_accs 
-         (id, user_id, theme, notification_preferences, dashboard_layout, created_at, updated_at)
-         VALUES 
-         (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW())
-         RETURNING *\`,
-        [userId, defaultSettings.theme, defaultSettings.notification_preferences, defaultSettings.dashboard_layout]
-      );
-      
-      return res.json(insertResult.rows[0]);
-    }
-    
-    return res.json(result.rows[0]);
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-
-/**
- * Update user settings for the authenticated user
- */
-export async function updateUserSettings(req, res) {
-  try {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    const { theme, notification_preferences, dashboard_layout } = req.body;
-    
-    // Check if user settings exist
-    const checkResult = await pool.query(
-      'SELECT id FROM user_accs WHERE user_id = $1',
-      [userId]
-    );
-    
-    if (checkResult.rows.length === 0) {
-      // Create new settings
-      const insertResult = await pool.query(
-        \`INSERT INTO user_accs 
-         (id, user_id, theme, notification_preferences, dashboard_layout, created_at, updated_at)
-         VALUES 
-         (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW())
-         RETURNING *\`,
-        [userId, theme, notification_preferences, dashboard_layout]
-      );
-      
-      return res.json(insertResult.rows[0]);
-    } else {
-      // Update existing settings
-      const updateResult = await pool.query(
-        \`UPDATE user_accs 
-         SET theme = COALESCE($1, theme),
-             notification_preferences = COALESCE($2, notification_preferences),
-             dashboard_layout = COALESCE($3, dashboard_layout),
-             updated_at = NOW()
-         WHERE user_id = $4
-         RETURNING *\`,
-        [theme, notification_preferences, dashboard_layout, userId]
-      );
-      
-      return res.json(updateResult.rows[0]);
-    }
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-
-/**
- * Delete user settings for the authenticated user
- */
-export async function deleteUserSettings(req, res) {
-  try {
-    const userId = req.user?.id;
-    
-    if (!userId) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-    
-    await pool.query(
-      'DELETE FROM user_accs WHERE user_id = $1',
-      [userId]
-    );
-    
-    return res.json({ success: true, message: 'User settings deleted successfully' });
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-`;
-
-  fs.writeFileSync(userSettingsHandlersPath, userSettingsHandlersContent);
-  logSuccess('Created user settings handlers');
-}
-
-// Create the settings-handlers.js file if it doesn't exist
-function createSettingsHandlers() {
-  logInfo('Creating settings handlers...');
+const API_ENDPOINTS = {
+  // System health checks endpoints
+  SYSTEM_HEALTH_CHECKS: {
+    GET_ALL: '/api/system-health-checks',
+    GET_BY_ID: '/api/system-health-checks/:id',
+    CREATE: '/api/system-health-checks',
+    DELETE: '/api/system-health-checks/:id'
+  },
   
-  const settingsHandlersContent = `/**
- * Settings Handlers
+  // User accounts endpoints
+  USER_ACCS: {
+    GET_ALL: '/api/user-accs',
+    GET_BY_ID: '/api/user-accs/:id',
+    CREATE: '/api/user-accs',
+    UPDATE: '/api/user-accs/:id',
+    DELETE: '/api/user-accs/:id'
+  },
+  
+  // Settings endpoints
+  SETTINGS: {
+    GET_ALL: '/api/settings',
+    GET_BY_CATEGORY: '/api/settings/:category',
+    GET_BY_KEY: '/api/settings/:category/:key',
+    CREATE: '/api/settings',
+    UPDATE: '/api/settings/:id',
+    DELETE: '/api/settings/:id'
+  }
+};
+
+export default API_ENDPOINTS;
+`;
+  
+  fs.writeFileSync(apiEndpointsPath, apiEndpoints);
+  console.log(`API endpoints configuration written to: ${apiEndpointsPath}`);
+}
+
+// Function to implement API service
+function implementApiService() {
+  console.log('Implementing API service...');
+  
+  const apiService = `/**
+ * api-service.js
  * 
- * This module provides handlers for system settings API endpoints.
+ * This file provides services for making API requests.
  */
 
-import { pool } from '../lib/postgres.js';
-import { handleError } from '../lib/error-handler.js';
+import API_ENDPOINTS from '../config/api-endpoints.js';
 
-/**
- * Get all system settings
- */
-export async function getSettings(req, res) {
-  try {
-    // Check if user has admin permissions
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ error: 'Admin permissions required' });
-    }
-    
-    const result = await pool.query('SELECT * FROM settings');
-    return res.json(result.rows);
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-
-/**
- * Get a specific system setting by key
- */
-export async function getSettingByKey(req, res) {
-  try {
-    const { key } = req.params;
-    
-    const result = await pool.query(
-      'SELECT * FROM settings WHERE key = $1',
-      [key]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Setting not found' });
-    }
-    
-    return res.json(result.rows[0]);
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-
-/**
- * Update a system setting
- */
-export async function updateSetting(req, res) {
-  try {
-    // Check if user has admin permissions
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ error: 'Admin permissions required' });
-    }
-    
-    const { key } = req.params;
-    const { value, description } = req.body;
-    
-    if (value === undefined) {
-      return res.status(400).json({ error: 'Value is required' });
-    }
-    
-    // Check if setting exists
-    const checkResult = await pool.query(
-      'SELECT * FROM settings WHERE key = $1',
-      [key]
-    );
-    
-    if (checkResult.rows.length === 0) {
-      // Create new setting
-      const insertResult = await pool.query(
-        \`INSERT INTO settings 
-         (id, key, value, description, created_at, updated_at)
-         VALUES 
-         (gen_random_uuid(), $1, $2, $3, NOW(), NOW())
-         RETURNING *\`,
-        [key, value, description]
-      );
+class ApiService {
+  /**
+   * Make a GET request to the API
+   * @param {string} url - The URL to make the request to
+   * @param {Object} params - The query parameters
+   * @returns {Promise<Object>} - The response data
+   */
+  static async get(url, params = {}) {
+    try {
+      const queryString = Object.keys(params).length > 0
+        ? '?' + new URLSearchParams(params).toString()
+        : '';
       
-      return res.json(insertResult.rows[0]);
-    } else {
-      // Update existing setting
-      const updateResult = await pool.query(
-        \`UPDATE settings 
-         SET value = $1,
-             description = COALESCE($2, description),
-             updated_at = NOW()
-         WHERE key = $3
-         RETURNING *\`,
-        [value, description, key]
-      );
+      const response = await fetch(url + queryString);
       
-      return res.json(updateResult.rows[0]);
+      if (!response.ok) {
+        throw new Error(\`HTTP error! Status: \${response.status}\`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making GET request:', error);
+      throw error;
     }
-  } catch (error) {
-    return handleError(error, req, res);
   }
-}
-
-/**
- * Create a new system setting
- */
-export async function createSetting(req, res) {
-  try {
-    // Check if user has admin permissions
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ error: 'Admin permissions required' });
-    }
-    
-    const { key, value, description } = req.body;
-    
-    if (!key || value === undefined) {
-      return res.status(400).json({ error: 'Key and value are required' });
-    }
-    
-    // Check if setting already exists
-    const checkResult = await pool.query(
-      'SELECT * FROM settings WHERE key = $1',
-      [key]
-    );
-    
-    if (checkResult.rows.length > 0) {
-      return res.status(409).json({ error: 'Setting already exists' });
-    }
-    
-    // Create new setting
-    const insertResult = await pool.query(
-      \`INSERT INTO settings 
-       (id, key, value, description, created_at, updated_at)
-       VALUES 
-       (gen_random_uuid(), $1, $2, $3, NOW(), NOW())
-       RETURNING *\`,
-      [key, value, description]
-    );
-    
-    return res.status(201).json(insertResult.rows[0]);
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-
-/**
- * Delete a system setting
- */
-export async function deleteSetting(req, res) {
-  try {
-    // Check if user has admin permissions
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ error: 'Admin permissions required' });
-    }
-    
-    const { key } = req.params;
-    
-    const result = await pool.query(
-      'DELETE FROM settings WHERE key = $1 RETURNING *',
-      [key]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Setting not found' });
-    }
-    
-    return res.json({ success: true, message: 'Setting deleted successfully' });
-  } catch (error) {
-    return handleError(error, req, res);
-  }
-}
-`;
-
-  fs.writeFileSync(settingsHandlersPath, settingsHandlersContent);
-  logSuccess('Created settings handlers');
-}
-
-// Update the system-status-handlers.js file to add missing methods
-function updateSystemStatusHandlers() {
-  logInfo('Updating system status handlers...');
   
-  try {
-    // Check if the file exists
-    if (!fs.existsSync(systemStatusHandlersPath)) {
-      logError(`File not found: ${systemStatusHandlersPath}`);
-      return false;
+  /**
+   * Make a POST request to the API
+   * @param {string} url - The URL to make the request to
+   * @param {Object} data - The data to send
+   * @returns {Promise<Object>} - The response data
+   */
+  static async post(url, data = {}) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(\`HTTP error! Status: \${response.status}\`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making POST request:', error);
+      throw error;
     }
-    
-    // Read the current content
-    const currentContent = fs.readFileSync(systemStatusHandlersPath, 'utf8');
-    
-    // Check if the methods already exist
-    if (currentContent.includes('createHealthCheck') && currentContent.includes('deleteHealthCheck')) {
-      logWarning('Methods already exist in system-status-handlers.js');
-      return true;
+  }
+  
+  /**
+   * Make a PUT request to the API
+   * @param {string} url - The URL to make the request to
+   * @param {Object} data - The data to send
+   * @returns {Promise<Object>} - The response data
+   */
+  static async put(url, data = {}) {
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(\`HTTP error! Status: \${response.status}\`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making PUT request:', error);
+      throw error;
     }
-    
-    // Add the missing methods
-    const updatedContent = currentContent + `
-/**
- * Create a new health check
+  }
+  
+  /**
+   * Make a DELETE request to the API
+   * @param {string} url - The URL to make the request to
+   * @returns {Promise<Object>} - The response data
+   */
+  static async delete(url) {
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error(\`HTTP error! Status: \${response.status}\`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making DELETE request:', error);
+      throw error;
+    }
+  }
+  
+  // System health checks API methods
+  static async getAllSystemHealthChecks() {
+    return this.get(API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.GET_ALL);
+  }
+  
+  static async getSystemHealthCheckById(id) {
+    const url = API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.GET_BY_ID.replace(':id', id);
+    return this.get(url);
+  }
+  
+  static async createSystemHealthCheck(data) {
+    return this.post(API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.CREATE, data);
+  }
+  
+  static async deleteSystemHealthCheck(id) {
+    const url = API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.DELETE.replace(':id', id);
+    return this.delete(url);
+  }
+  
+  // User accounts API methods
+  static async getAllUserAccs() {
+    return this.get(API_ENDPOINTS.USER_ACCS.GET_ALL);
+  }
+  
+  static async getUserAccById(id) {
+    const url = API_ENDPOINTS.USER_ACCS.GET_BY_ID.replace(':id', id);
+    return this.get(url);
+  }
+  
+  static async createUserAcc(data) {
+    return this.post(API_ENDPOINTS.USER_ACCS.CREATE, data);
+  }
+  
+  static async updateUserAcc(id, data) {
+    const url = API_ENDPOINTS.USER_ACCS.UPDATE.replace(':id', id);
+    return this.put(url, data);
+  }
+  
+  static async deleteUserAcc(id) {
+    const url = API_ENDPOINTS.USER_ACCS.DELETE.replace(':id', id);
+    return this.delete(url);
+  }
+  
+  // Settings API methods
+  static async getAllSettings() {
+    return this.get(API_ENDPOINTS.SETTINGS.GET_ALL);
+  }
+  
+  static async getSettingsByCategory(category) {
+    const url = API_ENDPOINTS.SETTINGS.GET_BY_CATEGORY.replace(':category', category);
+    return this.get(url);
+  }
+  
+  static async getSettingByKey(category, key) {
+    const url = API_ENDPOINTS.SETTINGS.GET_BY_KEY
+      .replace(':category', category)
+      .replace(':key', key);
+    return this.get(url);
+  }
+  
+  static async createSetting(data) {
+    return this.post(API_ENDPOINTS.SETTINGS.CREATE, data);
+  }
+  
+  static async updateSetting(id, data) {
+    const url = API_ENDPOINTS.SETTINGS.UPDATE.replace(':id', id);
+    return this.put(url, data);
+  }
+  
+  static async deleteSetting(id) {
+    const url = API_ENDPOINTS.SETTINGS.DELETE.replace(':id', id);
+    return this.delete(url);
+  }
+}
+
+export default ApiService;
+`;
+  
+  fs.writeFileSync(apiServicePath, apiService);
+  console.log(`API service written to: ${apiServicePath}`);
+}
+
+// Function to implement system health checks handler
+function implementSystemHealthChecksHandler() {
+  console.log('Implementing system health checks handler...');
+  
+  const systemHealthChecksHandler = `/**
+ * system-health-checks-handler.js
+ * 
+ * This file provides handlers for system health checks API endpoints.
  */
-export async function createHealthCheck(req, res) {
+
+import pg from 'pg';
+import { v4 as uuidv4 } from 'uuid';
+
+// Create a PostgreSQL client
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+/**
+ * Get all system health checks
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function getAllSystemHealthChecks(req, res) {
   try {
-    const { endpoint, category } = req.body;
+    const client = await pool.connect();
     
-    if (!endpoint || !category) {
-      return res.status(400).json({ error: 'Endpoint and category are required' });
+    try {
+      const result = await client.query('SELECT * FROM system_health_checks ORDER BY created_at DESC');
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows
+      });
+    } finally {
+      client.release();
     }
-    
-    // Insert the health check
-    const result = await pool.query(
-      \`INSERT INTO system_health_checks 
-       (id, endpoint, category, status, response_time, status_code, created_at)
-       VALUES 
-       (gen_random_uuid(), $1, $2, 'PENDING', 0, 0, NOW())
-       RETURNING *\`,
-      [endpoint, category]
-    );
-    
-    // Run the health check immediately
-    const healthMonitorService = req.app.get('healthMonitorService');
-    if (healthMonitorService) {
-      await healthMonitorService.runCheck(result.rows[0]);
-    }
-    
-    return res.status(201).json(result.rows[0]);
   } catch (error) {
-    return handleError(error, req, res);
+    console.error('Error getting system health checks:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting system health checks',
+      error: error.message
+    });
   }
 }
 
 /**
- * Delete a health check by ID
+ * Get a system health check by ID
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
  */
-export async function deleteHealthCheck(req, res) {
+export async function getSystemHealthCheckById(req, res) {
   try {
     const { id } = req.params;
     
-    const result = await pool.query(
-      'DELETE FROM system_health_checks WHERE id = $1 RETURNING *',
-      [id]
-    );
+    const client = await pool.connect();
     
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Health check not found' });
+    try {
+      const result = await client.query('SELECT * FROM system_health_checks WHERE id = $1', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`System health check with ID \${id} not found\`
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows[0]
+      });
+    } finally {
+      client.release();
     }
-    
-    return res.json({ success: true, message: 'Health check deleted successfully' });
   } catch (error) {
-    return handleError(error, req, res);
+    console.error('Error getting system health check:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting system health check',
+      error: error.message
+    });
   }
 }
 
 /**
- * Delete all health checks
+ * Create a system health check
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
  */
-export async function deleteAllHealthChecks(req, res) {
+export async function createSystemHealthCheck(req, res) {
   try {
-    // Check if user has admin permissions
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ error: 'Admin permissions required' });
+    const { endpoint, category, status, response_time, status_code } = req.body;
+    
+    // Validate required fields
+    if (!endpoint || !category || !status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: endpoint, category, status'
+      });
     }
     
-    await pool.query('DELETE FROM system_health_checks');
+    const id = uuidv4();
+    const created_at = new Date();
     
-    return res.json({ success: true, message: 'All health checks deleted successfully' });
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query(
+        'INSERT INTO system_health_checks (id, endpoint, category, status, response_time, status_code, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+        [id, endpoint, category, status, response_time || 0, status_code || 200, created_at]
+      );
+      
+      res.status(201).json({
+        success: true,
+        data: result.rows[0],
+        message: 'System health check created successfully'
+      });
+    } finally {
+      client.release();
+    }
   } catch (error) {
-    return handleError(error, req, res);
+    console.error('Error creating system health check:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error creating system health check',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Delete a system health check
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function deleteSystemHealthCheck(req, res) {
+  try {
+    const { id } = req.params;
+    
+    const client = await pool.connect();
+    
+    try {
+      // Check if the system health check exists
+      const checkResult = await client.query('SELECT * FROM system_health_checks WHERE id = $1', [id]);
+      
+      if (checkResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`System health check with ID \${id} not found\`
+        });
+      }
+      
+      // Delete the system health check
+      await client.query('DELETE FROM system_health_checks WHERE id = $1', [id]);
+      
+      res.status(200).json({
+        success: true,
+        message: \`System health check with ID \${id} deleted successfully\`
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting system health check:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting system health check',
+      error: error.message
+    });
   }
 }
 `;
-    
-    fs.writeFileSync(systemStatusHandlersPath, updatedContent);
-    logSuccess('Updated system status handlers');
-    return true;
-  } catch (error) {
-    logError(`Error updating system status handlers: ${error.message}`);
-    return false;
-  }
+  
+  const systemHealthChecksHandlerPath = path.join(handlersPath, 'system-health-checks-handler.js');
+  fs.writeFileSync(systemHealthChecksHandlerPath, systemHealthChecksHandler);
+  console.log(`System health checks handler written to: ${systemHealthChecksHandlerPath}`);
 }
 
-// Update the API registry to add the new routes
-function updateApiRegistry() {
-  logInfo('Updating API registry...');
+// Function to implement user accounts handler
+function implementUserAccsHandler() {
+  console.log('Implementing user accounts handler...');
   
-  try {
-    // Check if the file exists
-    if (!fs.existsSync(apiRegistryPath)) {
-      logError(`File not found: ${apiRegistryPath}`);
-      return false;
-    }
-    
-    // Read the current content
-    const currentContent = fs.readFileSync(apiRegistryPath, 'utf8');
-    
-    // Check if the routes already exist
-    if (
-      currentContent.includes('POST /system/health/checks') && 
-      currentContent.includes('DELETE /system/health/checks/:id') &&
-      currentContent.includes('GET /user/settings') &&
-      currentContent.includes('PUT /user/settings') &&
-      currentContent.includes('GET /settings')
-    ) {
-      logWarning('Routes already exist in API registry');
-      return true;
-    }
-    
-    // Find the import section
-    let updatedContent = currentContent;
-    
-    // Add imports for the new handlers if they don't exist
-    if (!updatedContent.includes('user-settings-handlers')) {
-      updatedContent = updatedContent.replace(
-        "import {",
-        "import { getUserSettings, updateUserSettings, deleteUserSettings } from '../handlers/user-settings-handlers.js';\nimport {"
-      );
-    }
-    
-    if (!updatedContent.includes('settings-handlers')) {
-      updatedContent = updatedContent.replace(
-        "import {",
-        "import { getSettings, getSettingByKey, updateSetting, createSetting, deleteSetting } from '../handlers/settings-handlers.js';\nimport {"
-      );
-    }
-    
-    // Add the createHealthCheck and deleteHealthCheck imports if they don't exist
-    if (!updatedContent.includes('createHealthCheck')) {
-      updatedContent = updatedContent.replace(
-        /import {([^}]+)} from '\.\.\/handlers\/system-status-handlers\.js';/,
-        "import { $1, createHealthCheck, deleteHealthCheck, deleteAllHealthChecks } from '../handlers/system-status-handlers.js';"
-      );
-    }
-    
-    // Find the routes array
-    const routesMatch = updatedContent.match(/const routes\s*=\s*\[([\s\S]*?)\];/);
-    
-    if (!routesMatch) {
-      logError('Could not find routes array in API registry');
-      return false;
-    }
-    
-    // Add the new routes
-    const newRoutes = `
-  // System health checks routes
-  { method: 'POST', path: '/system/health/checks', handler: createHealthCheck, auth: true },
-  { method: 'DELETE', path: '/system/health/checks/:id', handler: deleteHealthCheck, auth: true },
-  { method: 'DELETE', path: '/system/health/checks/all', handler: deleteAllHealthChecks, auth: true },
-  
-  // User settings routes
-  { method: 'GET', path: '/user/settings', handler: getUserSettings, auth: true },
-  { method: 'PUT', path: '/user/settings', handler: updateUserSettings, auth: true },
-  { method: 'DELETE', path: '/user/settings', handler: deleteUserSettings, auth: true },
-  
-  // System settings routes
-  { method: 'GET', path: '/settings', handler: getSettings, auth: true },
-  { method: 'GET', path: '/settings/:key', handler: getSettingByKey, auth: false },
-  { method: 'PUT', path: '/settings/:key', handler: updateSetting, auth: true },
-  { method: 'POST', path: '/settings', handler: createSetting, auth: true },
-  { method: 'DELETE', path: '/settings/:key', handler: deleteSetting, auth: true },`;
-    
-    // Insert the new routes at the beginning of the routes array
-    updatedContent = updatedContent.replace(
-      /const routes\s*=\s*\[/,
-      `const routes = [${newRoutes}`
-    );
-    
-    fs.writeFileSync(apiRegistryPath, updatedContent);
-    logSuccess('Updated API registry');
-    return true;
-  } catch (error) {
-    logError(`Error updating API registry: ${error.message}`);
-    return false;
-  }
-}
+  const userAccsHandler = `/**
+ * user-accs-handler.js
+ * 
+ * This file provides handlers for user accounts API endpoints.
+ */
 
-// Main function
-async function main() {
-  console.log(chalk.bold('=== Implementing Missing API Methods ==='));
-  
-  // Create the handlers directory if it doesn't exist
-  if (!fs.existsSync(handlersDir)) {
-    fs.mkdirSync(handlersDir, { recursive: true });
-    logSuccess(`Created directory: ${handlersDir}`);
-  }
-  
-  // Create the user settings handlers
-  createUserSettingsHandlers();
-  
-  // Create the settings handlers
-  createSettingsHandlers();
-  
-  // Update the system status handlers
-  updateSystemStatusHandlers();
-  
-  // Update the API registry
-  updateApiRegistry();
-  
-  console.log(chalk.bold('\n=== Implementation Complete ==='));
-  logInfo('The missing API methods have been implemented.');
-  logInfo('To apply these changes, restart the server.');
-}
+import pg from 'pg';
 
-// Run the main function
-main().catch(error => {
-  console.error('Fatal error:', error);
-  process.exit(1);
+// Create a PostgreSQL client
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
+
+/**
+ * Get all user accounts
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function getAllUserAccs(req, res) {
+  try {
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query('SELECT * FROM user_accs ORDER BY created_at DESC');
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error getting user accounts:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting user accounts',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get a user account by ID
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function getUserAccById(req, res) {
+  try {
+    const { id } = req.params;
+    
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query('SELECT * FROM user_accs WHERE id = $1', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`User account with ID \${id} not found\`
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows[0]
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error getting user account:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting user account',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Create a user account
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function createUserAcc(req, res) {
+  try {
+    const { user_id, display_name, theme_preference, notification_preferences } = req.body;
+    
+    // Validate required fields
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: user_id'
+      });
+    }
+    
+    const created_at = new Date();
+    const updated_at = created_at;
+    
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query(
+        'INSERT INTO user_accs (user_id, display_name, theme_preference, notification_preferences, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+        [user_id, display_name, theme_preference, notification_preferences, created_at, updated_at]
+      );
+      
+      res.status(201).json({
+        success: true,
+        data: result.rows[0],
+        message: 'User account created successfully'
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error creating user account:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error creating user account',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Update a user account
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function updateUserAcc(req, res) {
+  try {
+    const { id } = req.params;
+    const { display_name, theme_preference, notification_preferences } = req.body;
+    
+    const updated_at = new Date();
+    
+    const client = await pool.connect();
+    
+    try {
+      // Check if the user account exists
+      const checkResult = await client.query('SELECT * FROM user_accs WHERE id = $1', [id]);
+      
+      if (checkResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`User account with ID \${id} not found\`
+        });
+      }
+      
+      // Update the user account
+      const result = await client.query(
+        'UPDATE user_accs SET display_name = COALESCE($1, display_name), theme_preference = COALESCE($2, theme_preference), notification_preferences = COALESCE($3, notification_preferences), updated_at = $4 WHERE id = $5 RETURNING *',
+        [display_name, theme_preference, notification_preferences, updated_at, id]
+      );
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows[0],
+        message: 'User account updated successfully'
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error updating user account:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error updating user account',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Delete a user account
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function deleteUserAcc(req, res) {
+  try {
+    const { id } = req.params;
+    
+    const client = await pool.connect();
+    
+    try {
+      // Check if the user account exists
+      const checkResult = await client.query('SELECT * FROM user_accs WHERE id = $1', [id]);
+      
+      if (checkResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`User account with ID \${id} not found\`
+        });
+      }
+      
+      // Delete the user account
+      await client.query('DELETE FROM user_accs WHERE id = $1', [id]);
+      
+      res.status(200).json({
+        success: true,
+        message: \`User account with ID \${id} deleted successfully\`
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting user account:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting user account',
+      error: error.message
+    });
+  }
+}
+`;
+  
+  const userAccsHandlerPath = path.join(handlersPath, 'user-accs-handler.js');
+  fs.writeFileSync(userAccsHandlerPath, userAccsHandler);
+  console.log(`User accounts handler written to: ${userAccsHandlerPath}`);
+}
+
+// Function to implement settings handler
+function implementSettingsHandler() {
+  console.log('Implementing settings handler...');
+  
+  const settingsHandler = `/**
+ * settings-handler.js
+ * 
+ * This file provides handlers for settings API endpoints.
+ */
+
+import pg from 'pg';
+
+// Create a PostgreSQL client
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+/**
+ * Get all settings
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function getAllSettings(req, res) {
+  try {
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query('SELECT * FROM settings ORDER BY category, key');
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting settings',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get settings by category
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function getSettingsByCategory(req, res) {
+  try {
+    const { category } = req.params;
+    
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query('SELECT * FROM settings WHERE category = $1 ORDER BY key', [category]);
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error getting settings by category:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting settings by category',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get a setting by key
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function getSettingByKey(req, res) {
+  try {
+    const { category, key } = req.params;
+    
+    const client = await pool.connect();
+    
+    try {
+      const result = await client.query('SELECT * FROM settings WHERE category = $1 AND key = $2', [category, key]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`Setting with category \${category} and key \${key} not found\`
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows[0]
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error getting setting by key:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error getting setting by key',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Create a setting
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function createSetting(req, res) {
+  try {
+    const { key, value, category } = req.body;
+    
+    // Validate required fields
+    if (!key || !value || !category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: key, value, category'
+      });
+    }
+    
+    const created_at = new Date();
+    const updated_at = created_at;
+    
+    const client = await pool.connect();
+    
+    try {
+      // Check if the setting already exists
+      const checkResult = await client.query('SELECT * FROM settings WHERE category = $1 AND key = $2', [category, key]);
+      
+      if (checkResult.rows.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: \`Setting with category \${category} and key \${key} already exists\`
+        });
+      }
+      
+      // Create the setting
+      const result = await client.query(
+        'INSERT INTO settings (key, value, category, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [key, value, category, created_at, updated_at]
+      );
+      
+      res.status(201).json({
+        success: true,
+        data: result.rows[0],
+        message: 'Setting created successfully'
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error creating setting:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error creating setting',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Update a setting
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function updateSetting(req, res) {
+  try {
+    const { id } = req.params;
+    const { value } = req.body;
+    
+    // Validate required fields
+    if (!value) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required field: value'
+      });
+    }
+    
+    const updated_at = new Date();
+    
+    const client = await pool.connect();
+    
+    try {
+      // Check if the setting exists
+      const checkResult = await client.query('SELECT * FROM settings WHERE id = $1', [id]);
+      
+      if (checkResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`Setting with ID \${id} not found\`
+        });
+      }
+      
+      // Update the setting
+      const result = await client.query(
+        'UPDATE settings SET value = $1, updated_at = $2 WHERE id = $3 RETURNING *',
+        [value, updated_at, id]
+      );
+      
+      res.status(200).json({
+        success: true,
+        data: result.rows[0],
+        message: 'Setting updated successfully'
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error updating setting:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error updating setting',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Delete a setting
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
+export async function deleteSetting(req, res) {
+  try {
+    const { id } = req.params;
+    
+    const client = await pool.connect();
+    
+    try {
+      // Check if the setting exists
+      const checkResult = await client.query('SELECT * FROM settings WHERE id = $1', [id]);
+      
+      if (checkResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: \`Setting with ID \${id} not found\`
+        });
+      }
+      
+      // Delete the setting
+      await client.query('DELETE FROM settings WHERE id = $1', [id]);
+      
+      res.status(200).json({
+        success: true,
+        message: \`Setting with ID \${id} deleted successfully\`
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Error deleting setting:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting setting',
+      error: error.message
+    });
+  }
+}
+`;
+  
+  const settingsHandlerPath = path.join(handlersPath, 'settings-handler.js');
+  fs.writeFileSync(settingsHandlerPath, settingsHandler);
+  console.log(`Settings handler written to: ${settingsHandler

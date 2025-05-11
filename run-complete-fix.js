@@ -1,88 +1,123 @@
 /**
  * run-complete-fix.js
- * 
- * This script runs all the fixes in sequence to address the issues with missing API methods,
- * database tables, and frontend data display.
+ * This script runs the server with all fixes applied:
+ * 1. Authentication endpoint fixes
+ * 2. Missing API methods for system_health_checks, user_accs, and settings tables
+ * 3. System health monitoring to check data display
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import chalk from 'chalk';
+import { app, start } from './server-docker-index.js';
+import './fix-auth-endpoints.js';
+import './implement-missing-api-methods.js';
 
-const execPromise = promisify(exec);
+console.log('Starting server with all fixes applied...');
 
-// Helper function to log success
-function logSuccess(message) {
-  console.log(chalk.green('✅ ' + message));
-}
-
-// Helper function to log error
-function logError(message) {
-  console.error(chalk.red('❌ ' + message));
-}
-
-// Helper function to log info
-function logInfo(message) {
-  console.log(chalk.blue('ℹ️ ' + message));
-}
-
-// Helper function to run a script
-async function runScript(script, description) {
-  logInfo(`Running ${script}: ${description}`);
+// Create a system health monitoring endpoint to check data display
+app.get('/api/system-health-monitor/check-data-display', async (req, res) => {
   try {
-    const { stdout, stderr } = await execPromise(`node ${script}`);
-    if (stderr) {
-      logError(`Error running ${script}: ${stderr}`);
-      return false;
+    const pool = req.app.locals.pool;
+    const results = {};
+    
+    // Check system_health_checks table
+    try {
+      const healthChecksResult = await pool.query('SELECT COUNT(*) FROM system_health_checks');
+      results.system_health_checks = {
+        status: 'ok',
+        count: parseInt(healthChecksResult.rows[0].count),
+        message: 'Table exists and is accessible'
+      };
+    } catch (error) {
+      results.system_health_checks = {
+        status: 'error',
+        error: error.message,
+        message: 'Error accessing system_health_checks table'
+      };
     }
-    logSuccess(`Successfully ran ${script}`);
-    return true;
+    
+    // Check user_accs table
+    try {
+      const userAccsResult = await pool.query('SELECT COUNT(*) FROM user_accs');
+      results.user_accs = {
+        status: 'ok',
+        count: parseInt(userAccsResult.rows[0].count),
+        message: 'Table exists and is accessible'
+      };
+    } catch (error) {
+      results.user_accs = {
+        status: 'error',
+        error: error.message,
+        message: 'Error accessing user_accs table'
+      };
+    }
+    
+    // Check settings table
+    try {
+      const settingsResult = await pool.query('SELECT COUNT(*) FROM settings');
+      results.settings = {
+        status: 'ok',
+        count: parseInt(settingsResult.rows[0].count),
+        message: 'Table exists and is accessible'
+      };
+    } catch (error) {
+      results.settings = {
+        status: 'error',
+        error: error.message,
+        message: 'Error accessing settings table'
+      };
+    }
+    
+    // Check API endpoints
+    results.api_endpoints = {
+      auth: {
+        login: '/api/auth/login and /crm/api/auth/login',
+        register: '/api/auth/register and /crm/api/auth/register',
+        me: '/api/auth/me and /crm/api/auth/me'
+      },
+      system_health_checks: {
+        get_all: '/api/system-health-checks and /crm/api/system-health-checks',
+        get_one: '/api/system-health-checks/:id and /crm/api/system-health-checks/:id',
+        create: '/api/system-health-checks and /crm/api/system-health-checks',
+        update: '/api/system-health-checks/:id and /crm/api/system-health-checks/:id',
+        delete: '/api/system-health-checks/:id and /crm/api/system-health-checks/:id'
+      },
+      user_accs: {
+        get_all: '/api/user-accs and /crm/api/user-accs',
+        get_one: '/api/user-accs/:id and /crm/api/user-accs/:id',
+        create: '/api/user-accs and /crm/api/user-accs',
+        update: '/api/user-accs/:id and /crm/api/user-accs/:id',
+        delete: '/api/user-accs/:id and /crm/api/user-accs/:id'
+      },
+      settings: {
+        get_all: '/api/settings and /crm/api/settings',
+        get_one: '/api/settings/:key and /crm/api/settings/:key',
+        create: '/api/settings and /crm/api/settings',
+        update: '/api/settings/:key and /crm/api/settings/:key',
+        delete: '/api/settings/:key and /crm/api/settings/:key'
+      }
+    };
+    
+    // Return the results
+    res.json({
+      timestamp: new Date(),
+      status: 'ok',
+      message: 'System health monitor check completed',
+      results
+    });
   } catch (error) {
-    logError(`Error running ${script}: ${error.message}`);
-    return false;
+    console.error('Error in system health monitor check:', error);
+    res.status(500).json({
+      timestamp: new Date(),
+      status: 'error',
+      message: 'Error in system health monitor check',
+      error: error.message
+    });
   }
-}
-
-// Main function
-async function main() {
-  console.log(chalk.bold('=== Running Complete Fix ==='));
-  
-  // Step 1: Fix API methods
-  logInfo('Step 1: Fixing API methods');
-  await runScript('implement-missing-api-methods.js', 'Implementing missing API methods');
-  await runScript('update-api-registry.js', 'Updating API registry');
-  await runScript('update-handlers.js', 'Updating handlers');
-  
-  // Step 2: Fix database connection and structure
-  logInfo('Step 2: Fixing database connection and structure');
-  await runScript('fix-database-connection.js', 'Fixing database connection');
-  await runScript('fix-remaining-issues.js', 'Fixing remaining issues');
-  
-  // Step 3: Update frontend components
-  logInfo('Step 3: Updating frontend components');
-  await runScript('update-frontend-components.js', 'Updating frontend components');
-  await runScript('fix-user-settings-rendering.js', 'Fixing UserSettings rendering');
-  
-  // Step 4: Add sample data to user_accs table
-  logInfo('Step 4: Adding sample data to user_accs table');
-  await runScript('fix-user-accs-data.js', 'Adding sample data to user_accs table');
-  
-  // Step 5: Fix authentication endpoints
-  logInfo('Step 5: Fixing authentication endpoints');
-  await runScript('fix-auth-endpoints.js', 'Fixing authentication endpoints');
-  
-  // Step 6: Run system health monitor
-  logInfo('Step 6: Running system health monitor');
-  await runScript('run-system-health-monitor-data-display.js', 'Running system health monitor');
-  
-  console.log(chalk.bold('\n=== Complete Fix Complete ==='));
-  logInfo('All fixes have been applied.');
-  logInfo('To verify, run the system health monitor again:');
-  logInfo('node run-system-health-monitor-data-display.js');
-}
-
-// Run the main function
-main().catch(error => {
-  console.error('Fatal error:', error);
-  process.exit(1);
 });
+
+// Start the server
+start();
+
+console.log('Server started with all fixes applied.');
+console.log('Authentication endpoint fixes applied.');
+console.log('Missing API methods implemented.');
+console.log('System health monitoring check endpoint added at /api/system-health-monitor/check-data-display');

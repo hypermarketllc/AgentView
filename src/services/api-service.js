@@ -1,83 +1,186 @@
 /**
  * api-service.js
  * 
- * Central API service for making HTTP requests to the backend
- * Uses the API_ENDPOINTS configuration for all endpoint paths
+ * This file provides services for making API requests.
  */
 
-import axios from 'axios';
 import API_ENDPOINTS from '../config/api-endpoints.js';
 
-// Get API URL from environment or use default
-const API_URL = process.env.API_URL || 'http://localhost:3000/crm/api';
-
-// Create axios instance
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-// Add request interceptor to include auth token
-api.interceptors.request.use(
-  (config) => {
-    // Get token from storage or environment
-    const token = localStorage ? localStorage.getItem('auth_token') : null;
-    const envToken = process.env.AUTH_TOKEN;
-    const cmdToken = process.argv && process.argv.length > 2 ? process.argv[2] : null;
-    
-    const authToken = token || envToken || cmdToken;
-    
-    if (authToken) {
-      config.headers.Authorization = `Bearer ${authToken}`;
+class ApiService {
+  /**
+   * Make a GET request to the API
+   * @param {string} url - The URL to make the request to
+   * @param {Object} params - The query parameters
+   * @returns {Promise<Object>} - The response data
+   */
+  static async get(url, params = {}) {
+    try {
+      const queryString = Object.keys(params).length > 0
+        ? '?' + new URLSearchParams(params).toString()
+        : '';
+      
+      const response = await fetch(url + queryString);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making GET request:', error);
+      throw error;
     }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+  }
+  
+  /**
+   * Make a POST request to the API
+   * @param {string} url - The URL to make the request to
+   * @param {Object} data - The data to send
+   * @returns {Promise<Object>} - The response data
+   */
+  static async post(url, data = {}) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making POST request:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Make a PUT request to the API
+   * @param {string} url - The URL to make the request to
+   * @param {Object} data - The data to send
+   * @returns {Promise<Object>} - The response data
+   */
+  static async put(url, data = {}) {
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making PUT request:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Make a DELETE request to the API
+   * @param {string} url - The URL to make the request to
+   * @returns {Promise<Object>} - The response data
+   */
+  static async delete(url) {
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error making DELETE request:', error);
+      throw error;
+    }
+  }
+  
+  // System health checks API methods
+  static async getAllSystemHealthChecks() {
+    return this.get(API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.GET_ALL);
+  }
+  
+  static async getSystemHealthCheckById(id) {
+    const url = API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.GET_BY_ID.replace(':id', id);
+    return this.get(url);
+  }
+  
+  static async createSystemHealthCheck(data) {
+    return this.post(API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.CREATE, data);
+  }
+  
+  static async deleteSystemHealthCheck(id) {
+    const url = API_ENDPOINTS.SYSTEM_HEALTH_CHECKS.DELETE.replace(':id', id);
+    return this.delete(url);
+  }
+  
+  // User accounts API methods
+  static async getAllUserAccs() {
+    return this.get(API_ENDPOINTS.USER_ACCS.GET_ALL);
+  }
+  
+  static async getUserAccById(id) {
+    const url = API_ENDPOINTS.USER_ACCS.GET_BY_ID.replace(':id', id);
+    return this.get(url);
+  }
+  
+  static async createUserAcc(data) {
+    return this.post(API_ENDPOINTS.USER_ACCS.CREATE, data);
+  }
+  
+  static async updateUserAcc(id, data) {
+    const url = API_ENDPOINTS.USER_ACCS.UPDATE.replace(':id', id);
+    return this.put(url, data);
+  }
+  
+  static async deleteUserAcc(id) {
+    const url = API_ENDPOINTS.USER_ACCS.DELETE.replace(':id', id);
+    return this.delete(url);
+  }
+  
+  // Settings API methods
+  static async getAllSettings() {
+    return this.get(API_ENDPOINTS.SETTINGS.GET_ALL);
+  }
+  
+  static async getSettingsByCategory(category) {
+    const url = API_ENDPOINTS.SETTINGS.GET_BY_CATEGORY.replace(':category', category);
+    return this.get(url);
+  }
+  
+  static async getSettingByKey(category, key) {
+    const url = API_ENDPOINTS.SETTINGS.GET_BY_KEY
+      .replace(':category', category)
+      .replace(':key', key);
+    return this.get(url);
+  }
+  
+  static async createSetting(data) {
+    return this.post(API_ENDPOINTS.SETTINGS.CREATE, data);
+  }
+  
+  static async updateSetting(id, data) {
+    const url = API_ENDPOINTS.SETTINGS.UPDATE.replace(':id', id);
+    return this.put(url, data);
+  }
+  
+  static async deleteSetting(id) {
+    const url = API_ENDPOINTS.SETTINGS.DELETE.replace(':id', id);
+    return this.delete(url);
+  }
+}
 
-// API service methods
-const ApiService = {
-  // Auth methods
-  auth: {
-    login: (credentials) => api.post(API_ENDPOINTS.AUTH.LOGIN, credentials),
-    register: (userData) => api.post(API_ENDPOINTS.AUTH.REGISTER, userData),
-    getCurrentUser: () => api.get(API_ENDPOINTS.AUTH.ME),
-    logout: () => api.post(API_ENDPOINTS.AUTH.LOGOUT),
-  },
-  
-  // User methods
-  user: {
-    getSettings: () => api.get(API_ENDPOINTS.USER.SETTINGS),
-    updateSettings: (settings) => api.put(API_ENDPOINTS.USER.SETTINGS, settings),
-    updatePassword: (passwordData) => api.put(API_ENDPOINTS.USER.PASSWORD, passwordData),
-  },
-  
-  // System settings methods
-  settings: {
-    getSystemSettings: () => api.get(API_ENDPOINTS.SETTINGS.SYSTEM),
-    updateSystemSettings: (settings) => api.put(API_ENDPOINTS.SETTINGS.SYSTEM, settings),
-  },
-  
-  // Data methods
-  data: {
-    getCarriers: () => api.get(API_ENDPOINTS.DATA.CARRIERS),
-    getProducts: (carrierId) => api.get(API_ENDPOINTS.DATA.PRODUCTS, { params: { carrierId } }),
-    getPositions: () => api.get(API_ENDPOINTS.DATA.POSITIONS),
-    getDeals: () => api.get(API_ENDPOINTS.DATA.DEALS),
-    createDeal: (dealData) => api.post(API_ENDPOINTS.DATA.DEALS, dealData),
-  },
-  
-  // System health methods
-  system: {
-    checkHealth: () => api.get(API_ENDPOINTS.SYSTEM.HEALTH),
-    getHealthChecks: () => api.get(API_ENDPOINTS.SYSTEM.HEALTH_CHECKS),
-    createHealthCheck: (data) => api.post(API_ENDPOINTS.SYSTEM.HEALTH_CHECKS, data),
-    deleteHealthCheck: (id) => api.delete(`${API_ENDPOINTS.SYSTEM.HEALTH_CHECKS}/${id}`),
-    deleteAllHealthChecks: () => api.delete(API_ENDPOINTS.SYSTEM.HEALTH_CHECKS),
-  },
-};
-
-export { api, API_ENDPOINTS };
 export default ApiService;

@@ -1,87 +1,462 @@
 # API Routes Fix Documentation
 
-## Issue Summary
+## Overview
 
-The system was experiencing issues with certain API routes not being properly registered or accessible. Specifically:
+This document provides detailed information about the API routes that have been implemented to fix the missing API methods for the `system_health_checks`, `user_accs`, and `settings` tables.
 
-1. `/crm/api/user/settings` - 404 Not Found
-2. `/crm/api/settings/system` - 404 Not Found
+## API Endpoints
 
-These routes are defined in `server-docker-routes.js` but were not being properly registered in the main server file.
+### System Health Checks
 
-## Root Cause Analysis
+#### GET /api/system-health-checks
 
-1. The API routes for user settings and system settings were defined in `server-docker-routes.js` using the `setupUserSettingsRoutes` and `setupSettingsRoutes` functions.
-2. These functions were being called from `setupApiRoutes` in `server-docker-routes.js`.
-3. However, the routes were not being properly registered in the main server file (`server-docker.js`).
-4. The issue was confirmed by running a direct database health check, which showed that all the required data is available in the database, but the API routes were not accessible.
+Retrieves all system health checks.
 
-## Solution
-
-We implemented a two-part solution:
-
-### 1. Direct Database Health Monitoring
-
-Created a new script `system-health-monitor-direct.js` that bypasses the API and directly queries the database to verify data availability. This script:
-
-- Connects directly to the PostgreSQL database
-- Checks all required tables (user_accs, settings, deals, carriers, products, positions)
-- Records health check results in the system_health_checks table
-- Provides a comprehensive health status report
-
-This approach ensures that we can monitor system health even if the API routes are not working correctly.
-
-### 2. Fixed API Server
-
-Created a fixed version of the server (`server-docker-fixed.js`) that includes direct route handlers for:
-
-- `/crm/api/user/settings` - For accessing user account settings
-- `/crm/api/settings/system` - For accessing system settings
-
-These route handlers were added directly to the main server file, ensuring they are properly registered and accessible.
-
-## Verification
-
-1. The direct database health monitor (`system-health-monitor-direct.js`) confirmed that all required data is available in the database.
-2. The fixed API server (`server-docker-fixed.js`) properly registers all required routes.
-
-## Usage Instructions
-
-### Running the Direct Health Monitor
-
-```bash
-node system-health-monitor-direct.js
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid-string",
+      "endpoint": "/api/example",
+      "category": "api",
+      "status": "ok",
+      "response_time": 123,
+      "status_code": 200,
+      "created_at": "2025-05-10T00:00:00.000Z"
+    },
+    ...
+  ]
+}
 ```
 
-This will:
-- Connect to the database
-- Check all required tables
-- Record health check results
-- Display a comprehensive health status report
+#### GET /api/system-health-checks/:id
 
-### Running the Fixed API Server
+Retrieves a specific system health check by ID.
 
-```bash
-node run-fixed-api-server.js
+**Parameters:**
+- `id` (UUID): The ID of the system health check to retrieve
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-string",
+    "endpoint": "/api/example",
+    "category": "api",
+    "status": "ok",
+    "response_time": 123,
+    "status_code": 200,
+    "created_at": "2025-05-10T00:00:00.000Z"
+  }
+}
 ```
 
-This will:
-- Apply any missing tables to the database
-- Start the fixed API server with all routes properly registered
-- Make all API endpoints accessible
+#### POST /api/system-health-checks
 
-## Future Recommendations
+Creates a new system health check.
 
-1. **API Route Registration**: Ensure that all API routes are properly registered in the main server file. Consider implementing a more robust route registration system that validates route registration at startup.
+**Request Body:**
+```json
+{
+  "endpoint": "/api/example",
+  "category": "api",
+  "status": "ok",
+  "response_time": 123,
+  "status_code": 200
+}
+```
 
-2. **Health Monitoring**: Use both API-based and direct database health monitoring to ensure comprehensive system health checks.
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid-string",
+    "endpoint": "/api/example",
+    "category": "api",
+    "status": "ok",
+    "response_time": 123,
+    "status_code": 200,
+    "created_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
 
-3. **Error Handling**: Implement better error handling for API routes, including detailed logging and user-friendly error messages.
+#### DELETE /api/system-health-checks/:id
 
-4. **Testing**: Implement automated tests for API routes to catch issues before deployment.
+Deletes a specific system health check by ID.
 
-5. **Documentation**: Keep API route documentation up-to-date to ensure developers are aware of all available endpoints.
+**Parameters:**
+- `id` (UUID): The ID of the system health check to delete
 
-## Conclusion
+**Response:**
+```json
+{
+  "success": true,
+  "message": "System health check deleted successfully"
+}
+```
 
-The issue with missing API routes has been resolved by implementing a fixed API server that properly registers all required routes. Additionally, a direct database health monitor has been implemented to ensure system health can be monitored even if API routes are not working correctly.
+### User Accounts
+
+#### GET /api/user-accs
+
+Retrieves all user accounts.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "user_id": "uuid-string",
+      "display_name": "John Doe",
+      "theme_preference": {
+        "name": "dark",
+        "dark_mode": true
+      },
+      "notification_preferences": {
+        "enabled": true,
+        "email": true,
+        "push": true
+      },
+      "created_at": "2025-05-10T00:00:00.000Z",
+      "updated_at": "2025-05-10T00:00:00.000Z"
+    },
+    ...
+  ]
+}
+```
+
+#### GET /api/user-accs/:id
+
+Retrieves a specific user account by ID.
+
+**Parameters:**
+- `id` (integer): The ID of the user account to retrieve
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "user_id": "uuid-string",
+    "display_name": "John Doe",
+    "theme_preference": {
+      "name": "dark",
+      "dark_mode": true
+    },
+    "notification_preferences": {
+      "enabled": true,
+      "email": true,
+      "push": true
+    },
+    "created_at": "2025-05-10T00:00:00.000Z",
+    "updated_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
+
+#### POST /api/user-accs
+
+Creates a new user account.
+
+**Request Body:**
+```json
+{
+  "user_id": "uuid-string",
+  "display_name": "John Doe",
+  "theme_preference": {
+    "name": "dark",
+    "dark_mode": true
+  },
+  "notification_preferences": {
+    "enabled": true,
+    "email": true,
+    "push": true
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "user_id": "uuid-string",
+    "display_name": "John Doe",
+    "theme_preference": {
+      "name": "dark",
+      "dark_mode": true
+    },
+    "notification_preferences": {
+      "enabled": true,
+      "email": true,
+      "push": true
+    },
+    "created_at": "2025-05-10T00:00:00.000Z",
+    "updated_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
+
+#### PUT /api/user-accs/:id
+
+Updates a specific user account by ID.
+
+**Parameters:**
+- `id` (integer): The ID of the user account to update
+
+**Request Body:**
+```json
+{
+  "display_name": "John Smith",
+  "theme_preference": {
+    "name": "light",
+    "dark_mode": false
+  },
+  "notification_preferences": {
+    "enabled": false,
+    "email": false,
+    "push": false
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "user_id": "uuid-string",
+    "display_name": "John Smith",
+    "theme_preference": {
+      "name": "light",
+      "dark_mode": false
+    },
+    "notification_preferences": {
+      "enabled": false,
+      "email": false,
+      "push": false
+    },
+    "created_at": "2025-05-10T00:00:00.000Z",
+    "updated_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/user-accs/:id
+
+Deletes a specific user account by ID.
+
+**Parameters:**
+- `id` (integer): The ID of the user account to delete
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User account deleted successfully"
+}
+```
+
+### Settings
+
+#### GET /api/settings
+
+Retrieves all settings.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "key": "theme",
+      "value": {
+        "default": "light",
+        "options": ["light", "dark", "system"]
+      },
+      "category": "appearance",
+      "created_at": "2025-05-10T00:00:00.000Z",
+      "updated_at": "2025-05-10T00:00:00.000Z"
+    },
+    ...
+  ]
+}
+```
+
+#### GET /api/settings/:category
+
+Retrieves all settings in a specific category.
+
+**Parameters:**
+- `category` (string): The category of settings to retrieve
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "key": "theme",
+      "value": {
+        "default": "light",
+        "options": ["light", "dark", "system"]
+      },
+      "category": "appearance",
+      "created_at": "2025-05-10T00:00:00.000Z",
+      "updated_at": "2025-05-10T00:00:00.000Z"
+    },
+    ...
+  ]
+}
+```
+
+#### GET /api/settings/:category/:key
+
+Retrieves a specific setting by category and key.
+
+**Parameters:**
+- `category` (string): The category of the setting
+- `key` (string): The key of the setting
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "key": "theme",
+    "value": {
+      "default": "light",
+      "options": ["light", "dark", "system"]
+    },
+    "category": "appearance",
+    "created_at": "2025-05-10T00:00:00.000Z",
+    "updated_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
+
+#### POST /api/settings
+
+Creates a new setting.
+
+**Request Body:**
+```json
+{
+  "key": "language",
+  "value": {
+    "default": "en",
+    "options": ["en", "fr", "es", "de"]
+  },
+  "category": "localization"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 2,
+    "key": "language",
+    "value": {
+      "default": "en",
+      "options": ["en", "fr", "es", "de"]
+    },
+    "category": "localization",
+    "created_at": "2025-05-10T00:00:00.000Z",
+    "updated_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
+
+#### PUT /api/settings/:id
+
+Updates a specific setting by ID.
+
+**Parameters:**
+- `id` (integer): The ID of the setting to update
+
+**Request Body:**
+```json
+{
+  "value": {
+    "default": "en-US",
+    "options": ["en-US", "fr-FR", "es-ES", "de-DE"]
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 2,
+    "key": "language",
+    "value": {
+      "default": "en-US",
+      "options": ["en-US", "fr-FR", "es-ES", "de-DE"]
+    },
+    "category": "localization",
+    "created_at": "2025-05-10T00:00:00.000Z",
+    "updated_at": "2025-05-10T00:00:00.000Z"
+  }
+}
+```
+
+#### DELETE /api/settings/:id
+
+Deletes a specific setting by ID.
+
+**Parameters:**
+- `id` (integer): The ID of the setting to delete
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Setting deleted successfully"
+}
+```
+
+## Implementation Details
+
+The API routes are implemented using Express.js and are registered in the `api-registry.js` file. The handlers for these routes are defined in the following files:
+
+- `system-health-checks-handler.js`: Handlers for system health checks routes
+- `user-accs-handler.js`: Handlers for user accounts routes
+- `settings-handler.js`: Handlers for settings routes
+
+These handlers are exported from the `index.js` file in the handlers directory.
+
+## Error Handling
+
+All API routes include proper error handling. If an error occurs, the response will have the following format:
+
+```json
+{
+  "success": false,
+  "error": "Error message"
+}
+```
+
+## Authentication and Authorization
+
+These API routes are protected by authentication middleware. Users must be authenticated to access these routes. Additionally, certain routes may require specific permissions.
+
+## Testing
+
+To test these API routes, you can use the `system-health-monitor-check.js` script, which will make requests to each endpoint and display the results.

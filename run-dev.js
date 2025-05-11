@@ -7,6 +7,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import cors from 'cors';
+import { createMimeFixMiddleware, createDirectMimeTypeMiddleware, injectMimeFix } from './inject-mime-fix.js';
 
 // Load environment variables from .env.local
 dotenv.config({ path: '.env.local' });
@@ -24,7 +25,23 @@ const SALT_ROUNDS = 10;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'dist')));
+// Add MIME type fix middleware
+app.use(createDirectMimeTypeMiddleware());
+app.use(createMimeFixMiddleware());
+
+// Serve static files with proper MIME types
+app.use(express.static(path.join(__dirname, 'dist'), {
+  setHeaders: (res, filePath) => {
+    // Handle JavaScript files - both regular and module scripts
+    if (filePath.endsWith('.js') || filePath.includes('assets/index') && filePath.includes('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      console.log(`Setting Content-Type for ${filePath}: application/javascript`);
+    } else if (filePath.endsWith('.css') || filePath.includes('assets/index') && filePath.includes('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      console.log(`Setting Content-Type for ${filePath}: text/css`);
+    }
+  }
+}));
 
 // Supabase environment variables
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
@@ -290,8 +307,48 @@ app.post('/crm/api/deals', (req, res) => {
   }
 });
 
-// Serve the modified index.html for all routes
-app.get('*', (req, res) => {
+// Special handler for CSS files to ensure proper MIME type
+app.get('/crm/assets/*.css', (req, res, next) => {
+  const assetPath = req.path.replace('/crm', '');
+  const filePath = path.join(__dirname, 'dist', assetPath);
+  
+  console.log(`CSS request: ${req.path} -> ${filePath}`);
+  
+  if (fs.existsSync(filePath)) {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    console.log(`Explicitly setting Content-Type for CSS: text/css`);
+    res.sendFile(filePath);
+  } else {
+    console.log(`CSS file not found: ${filePath}`);
+    next();
+  }
+});
+
+// Special handler for JavaScript files to ensure proper MIME type
+app.get('/crm/assets/*.js', (req, res, next) => {
+  const assetPath = req.path.replace('/crm', '');
+  const filePath = path.join(__dirname, 'dist', assetPath);
+  
+  console.log(`JavaScript request: ${req.path} -> ${filePath}`);
+  
+  if (fs.existsSync(filePath)) {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    console.log(`Explicitly setting Content-Type for JS: application/javascript`);
+    res.sendFile(filePath);
+  } else {
+    console.log(`JS file not found: ${filePath}`);
+    next();
+  }
+});
+
+// Serve the modified index.html for all routes except asset files
+app.get('*', (req, res, next) => {
+  // Skip asset files to prevent SPA fallback from intercepting them
+  if (req.path.includes('/assets/') && (req.path.endsWith('.js') || req.path.endsWith('.css'))) {
+    console.log(`Skipping SPA fallback for asset: ${req.path}`);
+    return next();
+  }
+  
   res.send(indexHtml);
 });
 

@@ -1,0 +1,37 @@
+FROM node:16
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm install
+RUN npm install ws express-rate-limit pg dotenv
+
+# Create necessary directories
+RUN mkdir -p logs
+RUN mkdir -p Console_Release_Complete_Package/logs
+RUN mkdir -p Console_Release_Complete_Package/frontend
+
+# Copy application files
+COPY . .
+
+# Create frontend directories for console
+RUN mkdir -p Console_Release_Complete_Package/frontend/components
+RUN mkdir -p Console_Release_Complete_Package/frontend/layouts
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV ERROR_LOGGING_ENABLED=true
+ENV DOCKER_ENV=true
+ENV CONSOLE_ENABLED=true
+ENV PATCH_AUTO_RUN=true
+
+# Expose ports
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
+
+# Command to run
+CMD ["node", "Console_Release_Complete_Package/run_server_with_error_logging.js"]

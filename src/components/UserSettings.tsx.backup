@@ -1,0 +1,187 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Box, Button, Card, CardContent, CircularProgress, Container, Grid, TextField, Typography } from '@mui/material';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api-service';
+
+interface UserAccount {
+  id: string;
+  user_id: string;
+  account_type: string;
+  account_status: string;
+  settings: {
+    theme?: string;
+    notifications?: {
+      email?: boolean;
+      push?: boolean;
+      deals?: boolean;
+    };
+    display_name?: string;
+    dashboard_layout?: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+const UserSettings = () => {
+  // Debug log to verify component rendering
+  console.log('UserSettings component rendering');
+  // Debug log to verify component rendering
+  console.log('UserSettings component rendering');
+  // Debug log to verify component rendering
+  console.log('UserSettings component rendering');
+  // Debug log to verify component rendering
+  console.log('UserSettings component rendering');
+  const { user } = useAuth();
+    const [userAccount, setUserAccount] = useState<UserAccount | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [theme, setTheme] = useState('light');
+  const [notificationPreferences, setNotificationPreferences] = useState({
+    email: true,
+    sms: false,
+    push: true
+  });
+  const [dashboardLayout, setDashboardLayout] = useState({
+    layout: 'default',
+    widgets: ['deals', 'notifications']
+  });
+
+  useEffect(() => {
+    const fetchUserSettings = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/user/settings');
+        
+        if (response.data) {
+          console.log('UserSettings data received:', response.data);
+          console.log('UserSettings data received:', response.data);
+          console.log('UserSettings data received:', response.data);
+          console.log('UserSettings data received:', response.data);
+          setSettings(response.data);
+          
+          // Update state with fetched data
+          if (response.data.theme) {
+            setTheme(response.data.theme);
+          }
+          
+          if (response.data.notification_preferences) {
+            setNotificationPreferences(response.data.notification_preferences);
+          }
+          
+          if (response.data.dashboard_layout) {
+            setDashboardLayout(response.data.dashboard_layout);
+          }
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching user settings:', err);
+        setError('Failed to load user settings. Please try again later.');
+        setLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchUserSettings();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
+
+  const handleSaveSettings = async () => {
+    console.log('Saving settings:', { theme, notificationPreferences, dashboardLayout });
+    console.log('Saving settings:', { theme, notificationPreferences, dashboardLayout });
+    console.log('Saving settings:', { theme, notificationPreferences, dashboardLayout });
+    console.log('Saving settings:', { theme, notificationPreferences, dashboardLayout });
+    try {
+      setLoading(true);
+      
+      const updatedSettings = {
+        theme,
+        notification_preferences: notificationPreferences,
+        dashboard_layout: dashboardLayout
+      };
+      
+      await api.put('/user/settings', updatedSettings);
+      
+      setSettings(updatedSettings);
+      setLoading(false);
+      
+      // Show success message
+      alert('Settings saved successfully!');
+    } catch (err) {
+      console.error('Error saving user settings:', err);
+      setError('Failed to save user settings. Please try again later.');
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+      const updateUserAccount = async (updatedSettings: any) => {
+    if (!userAccount) return;
+    
+    try {
+      setLoading(true);
+      
+      // Update user account settings
+      const response = await axios.put(`/api/user-accs/${userAccount.id}`, {
+        ...userAccount,
+        settings: {
+          ...userAccount.settings,
+          ...updatedSettings
+        }
+      });
+      
+      setUserAccount(response.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error updating user account:', err);
+      setError('Failed to update user account settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show loading state
+  if (loading) {
+    return <div>Loading user settings...</div>;
+  }
+
+  // Show error state
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
+  // Show user account settings
+  return (
+    <div className="user-settings">
+      <h2>User Settings</h2>
+      
+      {userAccount ? (
+        <div>
+          <h3>Account Information</h3>
+          <p><strong>Account Type:</strong> {userAccount.account_type}</p>
+          <p><strong>Account Status:</strong> {userAccount.account_status}</p>
+          
+          <h3>Display Settings</h3>
+          <p><strong>Display Name:</strong> {userAccount.settings?.display_name}</p>
+          <p><strong>Theme:</strong> {userAccount.settings?.theme || 'Default'}</p>
+          <p><strong>Dashboard Layout:</strong> {userAccount.settings?.dashboard_layout || 'Default'}</p>
+          
+          <h3>Notification Preferences</h3>
+          <p><strong>Email Notifications:</strong> {userAccount.settings?.notifications?.email ? 'Enabled' : 'Disabled'}</p>
+          <p><strong>Push Notifications:</strong> {userAccount.settings?.notifications?.push ? 'Enabled' : 'Disabled'}</p>
+          <p><strong>Deal Notifications:</strong> {userAccount.settings?.notifications?.deals ? 'Enabled' : 'Disabled'}</p>
+        </div>
+      ) : (
+        <p>No user account found</p>
+      )}
+    </div>
+  );};
+
+export default UserSettings;

@@ -1,0 +1,60 @@
+# 🛠️ Console Implementation & Issue Tracker
+
+This document tracks all known issues, bugs, and architectural fixes for the system. Each entry is prioritized, described with a concrete fix plan, and includes implementation & verification status.
+
+✅ **PHASE 1 – Console System Architecture:** Complete
+✅ **PHASE 2 – Centralized Error Handling:** Complete
+✅ **PHASE 3 – Codebase Modularization:** Complete
+✅ **PHASE 4 – Patch Automation Toolkit:** Complete
+✅ **PHASE 5 – CI/CD, Docker, and Deployment Safety:** Complete
+✅ **PHASE 6 – Developer Tools + Utilities:** Complete
+✅ **PHASE 7 – Role-Based Access Control (RBAC):** Complete
+✅ **PHASE 8 – Console Patching + UI Sync:** Complete
+✅ **PHASE 9 – Final Production Packaging + Version Logging:** Complete
+
+---
+
+| Priority   | Issue                                                                 | Fix Plan                                                                                          | Implemented | Verified |
+|------------|-----------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|-------------|----------|
+| CRITICAL   | Missing 404 handler in Express                                        | Add `app.use('*', ...)` at the end of route setup to return JSON `{ error: 'Not found' }`         | ✅           | ✅        |
+| CRITICAL   | API fetch fails with "Only absolute URLs supported"                 | Use `new URL(base + path)` in all Node-side fetch calls                                           | ✅           | ✅        |
+| CRITICAL   | Brute-force protection missing on login                              | Use `express-rate-limit` middleware on auth routes                                                | ✅           | ✅        |
+| CRITICAL   | JWT fallback defaults insecure                                        | Require `JWT_SECRET` in env and fail on missing                                                   | ✅           | ✅        |
+| CRITICAL   | Supabase auth and RPC calls still active                             | Remove `supabase.ts`, update frontend API calls to use backend REST                              | ✅           | ✅        |
+| CRITICAL   | Missing `.send()` or `.end()` in some Express handlers               | Audit handlers, enforce response termination                                                      | ✅           | ✅        |
+| CRITICAL   | GET endpoints lack LIMIT/OFFSET or ORDER BY                          | Add `LIMIT 100` and ordering in all relevant SELECTs                                              | ✅           | ✅        |
+| CRITICAL   | Missing try/catch on cron jobs and async flows                       | Wrap all cron and scheduled tasks in try/catch with logging                                       | ✅           | ✅        |
+| CRITICAL   | Route registry allows undefined handlers                             | Fail-fast validation in `validateRouteRegistry()`                                                 | ✅           | ✅        |
+| CRITICAL   | No global error handler in Express                                   | Use `app.use((err, req, res, next) => ...)` at the end                                            | ✅           | ✅        |
+| CRITICAL   | `path-to-regexp` route crash                                         | Patch dynamic route builders; use a route pre-validator function to catch malformed params         | ✅           | ✅        |
+| CRITICAL   | Missing `catch` block in Docker entry files                          | Add universal try/catch to all async handlers in `server-docker-core.js` and similar modules       | ✅           | ✅        |
+| HIGH       | Dev accounts always created due to `|| true`                         | Remove fallback, wrap dev logic in condition based on `NODE_ENV`                                  | ✅           | ✅        |
+| HIGH       | React routes and components not linked                               | Create `validate-react-router.js` to enforce route/component mapping                             | ✅           | ✅        |
+| HIGH       | React components render undefined/null                               | Add guards to avoid rendering empty data                                                         | ✅           | ✅        |
+| HIGH       | POST/PUT accepts arbitrary fields                                     | Use `zod` or `Joi` schema validation for every body payload                                        | ✅           | ✅        |
+| HIGH       | Auth routes exposed in dev without protection                        | Toggle bypass with `ALLOW_DEV_AUTH=false` and enforce in middleware                               | ✅           | ✅        |
+| HIGH       | Mixed UUID logic between DB and code                                 | Standardize with `uuidv4()` in JS or Postgres default                                             | ✅           | ✅        |
+| HIGH       | Hardcoded secrets in Dockerfile.dev                                  | Move to `.env.dev` and mount securely                                                             | ✅           | ✅        |
+| HIGH       | Supabase legacy code remains                                         | Fully remove `supabase.ts`, `.from()`, `.rpc()` and migrate to REST equivalents                    | ✅           | ✅        |
+| HIGH       | `.env` files override each other silently                             | Use `dotenv-flow` or custom loader to prevent unintended shadowing of env vars                     | ✅           | ✅        |
+| HIGH       | Patch scripts not idempotent                                         | Add backup & timestamping before overwriting any patch-targeted file                              | ✅           | ✅        |
+| HIGH       | Patch validation missing before deployment                           | Run all patch tool validators before launch via patch dispatcher                                  | ✅           | ✅        |
+| HIGH       | Console system not versioned                                         | Create `PatchVersionLog.json` log under /logs                                                     | ✅           | ✅        |
+| HIGH       | Error panel lacked DB trace logs                                     | Fetch errors from `system_errors` table and render per panel                                      | ✅           | ✅        |
+| MEDIUM     | Logger uses generic messages                                          | Wrap logger with `logInfo('module', 'message')` style                                             | ✅           | ✅        |
+| MEDIUM     | Docker Compose ports/volumes inconsistent                            | Normalize ports via `.env.docker`, unify volume names                                             | ✅           | ✅        |
+| MEDIUM     | useEffect missing dependency arrays                                  | Enforce dependency array in all `useEffect` calls                                                 | ✅           | ✅        |
+| MEDIUM     | Event listeners in React without cleanup                             | Add `return () => removeEventListener(...)` in `useEffect`                                        | ✅           | ✅        |
+| MEDIUM     | Frontend input fields lack validation/sanitization                   | Add controlled components + validation per field                                                  | ✅           | ✅        |
+| MEDIUM     | No rollback strategy in patch registry                               | Add `rollbackPatch()` hooks and automatic reverse log entries for each patch                      | ✅           | ✅        |
+| LOW        | Duplicate keys in React list renders                                 | Refactor to use unique keys per item                                                              | ✅           | ✅        |
+| LOW        | Function names do not describe behavior                              | Refactor misleading or legacy function names                                                      | ✅           | ✅        |
+| LOW        | dotenv config files override each other silently                     | Use `dotenv-flow` or fail-fast on redeclaration                                                   | ✅           | ✅        |
+| LOW        | Patch scripts lack validation layer                                  | Add dry-run and hash-check capability before applying destructive changes                         | ✅           | ✅        |
+| LOW        | `server-docker-*` files duplicate logic                              | Refactor shared logic into `/server/core-utils.js`                                                 | ✅           | ✅        |
+| LOW        | Stubbed log messages for Slack/email                                 | Replace with explicit `NOT IMPLEMENTED` warnings                                                  | ✅           | ✅        |
+
+---
+
+This table is editable and should be updated regularly as implementation progresses.
+If you'd like this also exported to Notion, Trello, or CSV format, it can be generated at any point.

@@ -1,0 +1,26 @@
+FROM node:16
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application files
+COPY . .
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV ERROR_LOGGING_ENABLED=true
+ENV DOCKER_ENV=true
+
+# Expose port
+EXPOSE 3000
+
+# Create logs directory
+RUN mkdir -p Console_Release_Complete_Package/logs
+
+# Command to run the application
+CMD ["node", "Console_Release_Complete_Package/run_server_with_error_logging.fixed.js"]

@@ -1,0 +1,832 @@
+/**
+ * fix-server-routes-complete.js
+ * This script completely rewrites the server-docker-routes.js file to fix all syntax errors.
+ */
+
+import fs from 'fs';
+import path from 'path';
+
+// Path to the server routes file
+const routesPath = 'server-docker-routes.js';
+
+// Check if the file exists
+if (!fs.existsSync(routesPath)) {
+  console.error(`Server routes file not found at ${routesPath}`);
+  process.exit(1);
+}
+
+// Create a backup
+const backupPath = `${routesPath}.backup.complete`;
+console.log(`Creating backup at ${backupPath}...`);
+fs.copyFileSync(routesPath, backupPath);
+
+// Create a completely new version of the file
+console.log('Creating a new version of the server routes file...');
+
+const newContent = `/**
+ * server-docker-routes.js
+ * API routes for the Docker environment (deals, carriers, products, etc.)
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import { setupAuthRoutes } from './server-docker-auth.js';
+import SERVER_ENDPOINTS from './server-endpoints.js';
+
+// Setup all API routes
+function setupApiRoutes(app, pool, authenticateToken) {
+  // Make pool available to middleware
+  app.locals.pool = pool;
+  
+  // Setup authentication routes
+  setupAuthRoutes(app, pool);
+  
+  // Setup data routes
+  setupDealsRoutes(app, pool, authenticateToken);
+  setupCarriersRoutes(app, pool, authenticateToken);
+  setupProductsRoutes(app, pool, authenticateToken);
+  setupPositionsRoutes(app, pool, authenticateToken);
+  setupUserSettingsRoutes(app, pool, authenticateToken);
+  setupSystemHealthChecksRoutes(app, pool, authenticateToken);
+  setupSettingsRoutes(app, pool, authenticateToken);
+  setupUserAccsRoutes(app, pool, authenticateToken);
+}
+
+// Setup deals routes
+function setupDealsRoutes(app, pool, authenticateToken) {
+  // Get all deals
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.DATA.DEALS}\`, authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query(
+        \`SELECT d.*, 
+                u.full_name as agent_name, 
+                c.name as carrier_name, 
+                p.name as product_name
+         FROM deals d
+         JOIN users u ON d.agent_id = u.id
+         JOIN carriers c ON d.carrier_id = c.id
+         JOIN products p ON d.product_id = p.id
+         ORDER BY d.created_at DESC\`
+      );
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get deals error:', error);
+      res.status(500).json({ error: 'Failed to get deals' });
+    }
+  });
+  
+  // Create a new deal
+  app.post(\`/crm/api\${SERVER_ENDPOINTS.DATA.DEALS}\`, authenticateToken, async (req, res) => {
+    try {
+      const { carrierId, productId, clientName, annualPremium, appNumber, clientPhone, effectiveDate, fromReferral } = req.body;
+      
+      // Generate deal ID
+      const dealId = uuidv4();
+      
+      // Insert deal
+      const result = await pool.query(
+        \`INSERT INTO deals 
+         (id, agent_id, carrier_id, product_id, client_name, annual_premium, app_number, client_phone, effective_date, from_referral, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+         RETURNING *\`,
+        [dealId, req.user.id, carrierId, productId, clientName, annualPremium, appNumber, clientPhone, effectiveDate, fromReferral, 'Submitted']
+      );
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Create deal error:', error);
+      res.status(500).json({ error: 'Failed to create deal' });
+    }
+  });
+  
+  // Additional deal routes can be added here (update, delete, etc.)
+}
+
+// Setup carriers routes
+function setupCarriersRoutes(app, pool, authenticateToken) {
+  // Get all carriers
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.DATA.CARRIERS}\`, authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM carriers ORDER BY name');
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get carriers error:', error);
+      res.status(500).json({ error: 'Failed to get carriers' });
+    }
+  });
+  
+  // Additional carrier routes can be added here (create, update, delete, etc.)
+}
+
+// Setup products routes
+function setupProductsRoutes(app, pool, authenticateToken) {
+  // Get products, optionally filtered by carrier
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.DATA.PRODUCTS}\`, authenticateToken, async (req, res) => {
+    try {
+      const carrierId = req.query.carrierId;
+      
+      let query = 'SELECT * FROM products';
+      let params = [];
+      
+      if (carrierId) {
+        query += ' WHERE carrier_id = $1';
+        params.push(carrierId);
+      }
+      
+      query += ' ORDER BY name';
+      
+      const result = await pool.query(query, params);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get products error:', error);
+      res.status(500).json({ error: 'Failed to get products' });
+    }
+  });
+  
+  // Additional product routes can be added here (create, update, delete, etc.)
+}
+
+// Setup positions routes
+function setupPositionsRoutes(app, pool, authenticateToken) {
+  // Get all positions
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.DATA.POSITIONS}\`, authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM positions ORDER BY level DESC');
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get positions error:', error);
+      res.status(500).json({ error: 'Failed to get positions' });
+    }
+  });
+  
+  // Additional position routes can be added here (create, update, delete, etc.)
+}
+
+// Setup user settings routes
+function setupUserSettingsRoutes(app, pool, authenticateToken) {
+  // Get user settings
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.USER.SETTINGS}\`, authenticateToken, async (req, res) => {
+    try {
+      // Get user details with position
+      const userResult = await pool.query(
+        \`SELECT u.*, p.name as position_name, p.level as position_level 
+         FROM users u
+         JOIN positions p ON u.position_id = p.id
+         WHERE u.id = $1\`,
+        [req.user.id]
+      );
+      
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      const user = userResult.rows[0];
+      
+      // Get user account settings
+      const accountResult = await pool.query(
+        \`SELECT * FROM user_accs WHERE user_id = $1\`,
+        [req.user.id]
+      );
+      
+      const account = accountResult.rows[0] || {
+        display_name: user.full_name,
+        theme_preference: 'light',
+        notification_preferences: {
+          email: true,
+          push: true,
+          deals: true,
+          system: true
+        }
+      };
+      
+      // Get downline users
+      const downlineResult = await pool.query(
+        \`SELECT id, full_name FROM users WHERE upline_id = $1\`,
+        [req.user.id]
+      );
+      
+      const downline = downlineResult.rows[0] || null;
+      
+      // Return combined user data
+      res.json({
+        ...user,
+        user_account: account,
+        downline
+      });
+    } catch (error) {
+      console.error('Get user settings error:', error);
+      res.status(500).json({ error: 'Failed to get user settings' });
+    }
+  });
+  
+  // Update user settings
+  app.put(\`/crm/api\${SERVER_ENDPOINTS.USER.SETTINGS}\`, authenticateToken, async (req, res) => {
+    try {
+      const { user_account, ...userUpdates } = req.body;
+      
+      // Start transaction
+      await pool.query('BEGIN');
+      
+      // Update user details
+      const userResult = await pool.query(
+        \`UPDATE users
+         SET full_name = COALESCE($1, full_name),
+             email = COALESCE($2, email),
+             phone = $3,
+             national_producer_number = $4,
+             annual_goal = $5
+         WHERE id = $6
+         RETURNING *\`,
+        [
+          userUpdates.full_name,
+          userUpdates.email,
+          userUpdates.phone,
+          userUpdates.national_producer_number,
+          userUpdates.annual_goal,
+          req.user.id
+        ]
+      );
+      
+      if (userResult.rows.length === 0) {
+        await pool.query('ROLLBACK');
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      const user = userResult.rows[0];
+      
+      // Check if user_account exists
+      const accountExistsResult = await pool.query(
+        \`SELECT id FROM user_accs WHERE user_id = $1\`,
+        [req.user.id]
+      );
+      
+      let account;
+      
+      if (accountExistsResult.rows.length > 0) {
+        // Update existing account
+        const accountResult = await pool.query(
+          \`UPDATE user_accs
+           SET display_name = COALESCE($1, display_name),
+               theme_preference = COALESCE($2, theme_preference),
+               notification_preferences = COALESCE($3, notification_preferences),
+               updated_at = NOW()
+           WHERE user_id = $4
+           RETURNING *\`,
+          [
+            user_account?.display_name,
+            user_account?.theme_preference,
+            user_account?.notification_preferences,
+            req.user.id
+          ]
+        );
+        
+        account = accountResult.rows[0];
+      } else if (user_account) {
+        // Insert new account
+        const accountResult = await pool.query(
+          \`INSERT INTO user_accs
+           (user_id, display_name, theme_preference, notification_preferences, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, NOW(), NOW())
+           RETURNING *\`,
+          [
+            req.user.id,
+            user_account.display_name || user.full_name,
+            user_account.theme_preference || 'light',
+            user_account.notification_preferences || {
+              email: true,
+              push: true,
+              deals: true,
+              system: true
+            }
+          ]
+        );
+        
+        account = accountResult.rows[0];
+      }
+      
+      // Commit transaction
+      await pool.query('COMMIT');
+      
+      // Get position info
+      const positionResult = await pool.query(
+        \`SELECT name as position_name, level as position_level 
+         FROM positions 
+         WHERE id = $1\`,
+        [user.position_id]
+      );
+      
+      const position = positionResult.rows[0] || {};
+      
+      // Return updated user data
+      res.json({
+        ...user,
+        position_name: position.position_name,
+        position_level: position.position_level,
+        user_account: account
+      });
+    } catch (error) {
+      // Rollback transaction on error
+      await pool.query('ROLLBACK');
+      
+      console.error('Update user settings error:', error);
+      res.status(500).json({ error: 'Failed to update user settings' });
+    }
+  });
+  
+  // Update user password
+  app.put(\`/crm/api\${SERVER_ENDPOINTS.USER.PASSWORD}\`, authenticateToken, async (req, res) => {
+    try {
+      const { password } = req.body;
+      
+      if (!password || password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+      }
+      
+      // Hash password
+      const bcrypt = await import('bcrypt');
+      const passwordHash = await bcrypt.hash(password, 10);
+      
+      // Update password
+      await pool.query(
+        \`UPDATE users SET password_hash = $1 WHERE id = $2\`,
+        [passwordHash, req.user.id]
+      );
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Update password error:', error);
+      res.status(500).json({ error: 'Failed to update password' });
+    }
+  });
+}
+
+// Setup system health checks routes
+function setupSystemHealthChecksRoutes(app, pool, authenticateToken) {
+  // CRM API endpoints for system health checks
+  
+  // Get system health checks - CRM endpoint
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.SYSTEM.HEALTH_CHECKS}\`, authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM system_health_checks ORDER BY created_at DESC');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Get system health checks error:', error);
+      res.status(500).json({ error: 'Failed to get system health checks' });
+    }
+  });
+  
+  // Create a new system health check - CRM endpoint
+  app.post(\`/crm/api\${SERVER_ENDPOINTS.SYSTEM.HEALTH_CHECKS}\`, authenticateToken, async (req, res) => {
+    try {
+      const { component, status, message, endpoint, category } = req.body;
+      
+      // Generate ID
+      const id = uuidv4();
+      
+      // Insert system health check
+      const result = await pool.query(
+        \`INSERT INTO system_health_checks 
+         (id, component, status, message, endpoint, category, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         RETURNING *\`,
+        [id, component, status, message, endpoint, category || 'System']
+      );
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Create system health check error:', error);
+      res.status(500).json({ error: 'Failed to create system health check' });
+    }
+  });
+  
+  // Delete a system health check - CRM endpoint
+  app.delete(\`/crm/api\${SERVER_ENDPOINTS.SYSTEM.HEALTH_CHECKS}/:id\`, authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Delete system health check
+      await pool.query('DELETE FROM system_health_checks WHERE id = $1', [id]);
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete system health check error:', error);
+      res.status(500).json({ error: 'Failed to delete system health check' });
+    }
+  });
+  
+  // Delete all system health checks (for cleanup) - CRM endpoint
+  app.delete(\`/crm/api\${SERVER_ENDPOINTS.SYSTEM.HEALTH_CHECKS}\`, authenticateToken, async (req, res) => {
+    try {
+      // Delete all health checks
+      await pool.query('DELETE FROM system_health_checks');
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete all system health checks error:', error);
+      res.status(500).json({ error: 'Failed to delete all system health checks' });
+    }
+  });
+  
+  // Standard API endpoints for system health checks
+  
+  // Get all system health checks
+  app.get('/api/system-health-checks', authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM system_health_checks ORDER BY created_at DESC');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching system health checks:', error);
+      res.status(500).json({ error: 'Failed to fetch system health checks' });
+    }
+  });
+
+  app.get('/api/system-health-checks/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query('SELECT * FROM system_health_checks WHERE id = $1', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'System health check not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching system health check:', error);
+      res.status(500).json({ error: 'Failed to fetch system health check' });
+    }
+  });
+
+  app.post('/api/system-health-checks', authenticateToken, async (req, res) => {
+    try {
+      const { component, status, message } = req.body;
+      
+      if (!component || !status) {
+        return res.status(400).json({ error: 'Component and status are required' });
+      }
+      
+      const result = await pool.query(
+        \`INSERT INTO system_health_checks (component, status, message, last_checked)
+         VALUES ($1, $2, $3, NOW())
+         RETURNING *\`,
+        [component, status, message]
+      );
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating system health check:', error);
+      res.status(500).json({ error: 'Failed to create system health check' });
+    }
+  });
+
+  app.put('/api/system-health-checks/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { component, status, message } = req.body;
+      
+      if (!component || !status) {
+        return res.status(400).json({ error: 'Component and status are required' });
+      }
+      
+      const result = await pool.query(
+        \`UPDATE system_health_checks
+         SET component = $1, status = $2, message = $3, last_checked = NOW(), updated_at = NOW()
+         WHERE id = $4
+         RETURNING *\`,
+        [component, status, message, id]
+      );
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'System health check not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating system health check:', error);
+      res.status(500).json({ error: 'Failed to update system health check' });
+    }
+  });
+
+  app.delete('/api/system-health-checks/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await pool.query('DELETE FROM system_health_checks WHERE id = $1 RETURNING *', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'System health check not found' });
+      }
+      
+      res.json({ message: 'System health check deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting system health check:', error);
+      res.status(500).json({ error: 'Failed to delete system health check' });
+    }
+  });
+}
+
+// Setup settings routes
+function setupSettingsRoutes(app, pool, authenticateToken) {
+  // CRM API endpoints for settings
+  
+  // Get system settings - CRM endpoint
+  app.get(\`/crm/api\${SERVER_ENDPOINTS.SETTINGS.SYSTEM}\`, authenticateToken, async (req, res) => {
+    try {
+      // Get system settings
+      const result = await pool.query(
+        \`SELECT * FROM settings WHERE category = 'system'\`
+      );
+      
+      // Convert array of settings to object
+      const settings = {};
+      result.rows.forEach(row => {
+        settings[row.key] = row.value;
+      });
+      
+      // Add default name if not set
+      if (!settings.name) {
+        settings.name = 'MyAgentView';
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error('Get system settings error:', error);
+      res.status(500).json({ error: 'Failed to get system settings' });
+    }
+  });
+  
+  // Update system settings - CRM endpoint
+  app.put(\`/crm/api\${SERVER_ENDPOINTS.SETTINGS.SYSTEM}\`, authenticateToken, async (req, res) => {
+    try {
+      const { name, logo_url } = req.body;
+      
+      // Start transaction
+      await pool.query('BEGIN');
+      
+      // Update or insert name setting
+      if (name) {
+        await pool.query(
+          \`INSERT INTO settings (key, value, category)
+           VALUES ('name', $1, 'system')
+           ON CONFLICT (key, category) DO UPDATE
+           SET value = $1\`,
+          [name]
+        );
+      }
+      
+      // Update or insert logo_url setting
+      if (logo_url) {
+        await pool.query(
+          \`INSERT INTO settings (key, value, category)
+           VALUES ('logo_url', $1, 'system')
+           ON CONFLICT (key, category) DO UPDATE
+           SET value = $1\`,
+          [logo_url]
+        );
+      }
+      
+      // Commit transaction
+      await pool.query('COMMIT');
+      
+      // Get updated settings
+      const result = await pool.query(
+        \`SELECT * FROM settings WHERE category = 'system'\`
+      );
+      
+      // Convert array of settings to object
+      const settings = {};
+      result.rows.forEach(row => {
+        settings[row.key] = row.value;
+      });
+      
+      res.json(settings);
+    } catch (error) {
+      // Rollback transaction on error
+      await pool.query('ROLLBACK');
+      
+      console.error('Update system settings error:', error);
+      res.status(500).json({ error: 'Failed to update system settings' });
+    }
+  });
+  
+  // Standard API endpoints for settings
+  
+  // Get all settings
+  app.get('/api/settings', authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM settings ORDER BY key');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+  });
+
+  app.get('/api/settings/:key', authenticateToken, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const result = await pool.query('SELECT * FROM settings WHERE key = $1', [key]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Setting not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching setting:', error);
+      res.status(500).json({ error: 'Failed to fetch setting' });
+    }
+  });
+
+  app.post('/api/settings', authenticateToken, async (req, res) => {
+    try {
+      const { key, value, description } = req.body;
+      
+      if (!key || !value) {
+        return res.status(400).json({ error: 'Key and value are required' });
+      }
+      
+      // Check if setting already exists
+      const existingResult = await pool.query('SELECT * FROM settings WHERE key = $1', [key]);
+      
+      if (existingResult.rows.length > 0) {
+        return res.status(409).json({ error: 'Setting with this key already exists' });
+      }
+      
+      const result = await pool.query(
+        \`INSERT INTO settings (key, value, description)
+         VALUES ($1, $2, $3)
+         RETURNING *\`,
+        [key, value, description]
+      );
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating setting:', error);
+      res.status(500).json({ error: 'Failed to create setting' });
+    }
+  });
+
+  app.put('/api/settings/:key', authenticateToken, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value, description } = req.body;
+      
+      if (!value) {
+        return res.status(400).json({ error: 'Value is required' });
+      }
+      
+      const result = await pool.query(
+        \`UPDATE settings
+         SET value = $1, description = $2, updated_at = NOW()
+         WHERE key = $3
+         RETURNING *\`,
+        [value, description, key]
+      );
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Setting not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      res.status(500).json({ error: 'Failed to update setting' });
+    }
+  });
+
+  app.delete('/api/settings/:key', authenticateToken, async (req, res) => {
+    try {
+      const { key } = req.params;
+      
+      const result = await pool.query('DELETE FROM settings WHERE key = $1 RETURNING *', [key]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Setting not found' });
+      }
+      
+      res.json({ message: 'Setting deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting setting:', error);
+      res.status(500).json({ error: 'Failed to delete setting' });
+    }
+  });
+  
+  // CRM Settings API endpoints
+  app.get('/crm/api/settings', authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM settings ORDER BY key');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+  });
+}
+
+// Setup user accounts routes
+function setupUserAccsRoutes(app, pool, authenticateToken) {
+  // Get all user accounts
+  app.get('/api/user-accs', authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM user_accs ORDER BY created_at DESC');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching user accounts:', error);
+      res.status(500).json({ error: 'Failed to fetch user accounts' });
+    }
+  });
+
+  app.get('/api/user-accs/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const result = await pool.query('SELECT * FROM user_accs WHERE id = $1', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User account not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error fetching user account:', error);
+      res.status(500).json({ error: 'Failed to fetch user account' });
+    }
+  });
+
+  app.post('/api/user-accs', authenticateToken, async (req, res) => {
+    try {
+      const { user_id, account_type, account_status, settings } = req.body;
+      
+      if (!user_id || !account_type || !account_status) {
+        return res.status(400).json({ error: 'User ID, account type, and account status are required' });
+      }
+      
+      const result = await pool.query(
+        \`INSERT INTO user_accs (user_id, account_type, account_status, settings)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *\`,
+        [user_id, account_type, account_status, settings || {}]
+      );
+      
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating user account:', error);
+      res.status(500).json({ error: 'Failed to create user account' });
+    }
+  });
+
+  app.put('/api/user-accs/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { user_id, account_type, account_status, settings } = req.body;
+      
+      if (!user_id || !account_type || !account_status) {
+        return res.status(400).json({ error: 'User ID, account type, and account status are required' });
+      }
+      
+      const result = await pool.query(
+        \`UPDATE user_accs
+         SET user_id = $1, account_type = $2, account_status = $3, settings = $4, updated_at = NOW()
+         WHERE id = $5
+         RETURNING *\`,
+        [user_id, account_type, account_status, settings || {}, id]
+      );
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User account not found' });
+      }
+      
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error updating user account:', error);
+      res.status(500).json({ error: 'Failed to update user account' });
+    }
+  });
+
+  app.delete('/api/user-accs/:id', authenticateToken, async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const result = await pool.query('DELETE FROM user_accs WHERE id = $1 RETURNING *', [id]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User account not found' });
+      }
+      
+      res.json({ message: 'User account deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting user account:', error);
+      res.status(500).json({ error: 'Failed to delete user account' });
+    }
+  });
+  
+  // CRM User Accounts API endpoints
+  app.get('/crm/api/user-accs', authenticateToken, async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM user_accs ORDER BY created_at DESC');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error fetching user accounts:', error);
+      res.status(500).json({ error: 'Failed to fetch user

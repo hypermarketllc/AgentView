@@ -1,134 +1,126 @@
-# System Health Implementation Summary
+# System Health Monitoring and API Implementation
 
 ## Overview
 
-This document summarizes the implementation of system health monitoring features in the application. It outlines what has been accomplished, what issues were fixed, and what still needs to be done.
+This documentation provides information about the implementation of missing API methods and system health monitoring features.
 
-## Accomplished Tasks
+## Implemented API Methods
 
-1. **Database Tables Created**:
-   - `system_health_checks`: For storing health check results
-   - `system_errors`: For logging system errors
-   - `user_accs`: For storing user account settings
-   - `settings`: For storing system-wide settings
+The following API methods have been implemented:
 
-2. **Data Population**:
-   - Inserted test data into all tables
-   - Verified data insertion with health check script
+### System Health Checks
 
-3. **API Endpoints**:
-   - Registered 24 API endpoints for various functionalities
-   - Confirmed `/system/health` endpoint is working correctly
+- GET /api/system-health-checks - Get all system health checks
+- GET /api/system-health-checks/:id - Get a system health check by ID
+- POST /api/system-health-checks - Create a system health check
+- DELETE /api/system-health-checks/:id - Delete a system health check
 
-4. **Monitoring Tools**:
-   - Created `system-health-monitor-check.js` for manual health checks
-   - Created `system-health-monitor-check-fixed.js` with improved error handling
-   - Implemented scheduled health checks using node-cron
+### User Accounts
 
-5. **Documentation**:
-   - Created `SYSTEM_HEALTH_MONITORING.md` with detailed documentation
-   - Created this summary document
+- GET /api/user-accs - Get all user accounts
+- GET /api/user-accs/:id - Get a user account by ID
+- POST /api/user-accs - Create a user account
+- PUT /api/user-accs/:id - Update a user account
+- DELETE /api/user-accs/:id - Delete a user account
 
-## Fixed Issues
+### Settings
 
-1. **Database Table Creation**:
-   - Fixed SQL script to properly create tables with correct column definitions
-   - Added transaction support to ensure all tables are created or none
-   - Added default values for UUID columns using `gen_random_uuid()`
+- GET /api/settings - Get all settings
+- GET /api/settings/:category - Get settings by category
+- GET /api/settings/:category/:key - Get a setting by key
+- POST /api/settings - Create a setting
+- PUT /api/settings/:id - Update a setting
+- DELETE /api/settings/:id - Delete a setting
 
-2. **Permission Issues**:
-   - Removed references to `crm_user` role that didn't exist
-   - Updated scripts to use the `postgres` user from the .env file
+## Database Tables
 
-3. **Missing Dependencies**:
-   - Installed required packages: `node-cron`, `node-fetch`, and `chalk`
+The following database tables have been created:
 
-4. **Error Handling**:
-   - Improved error handling in health check scripts
-   - Added better reporting of issues
+### system_health_checks
 
-5. **Authentication Issues**:
-   - Modified scripts to work without authentication where possible
-   - Added fallback mechanisms for endpoints requiring authentication
+This table stores system health check data.
 
-## Current Status
+- id (UUID, primary key)
+- endpoint (VARCHAR(255), not null)
+- category (VARCHAR(50), not null)
+- status (VARCHAR(20), not null)
+- response_time (INTEGER, not null)
+- status_code (INTEGER, not null)
+- created_at (TIMESTAMP WITH TIME ZONE, not null)
 
-1. **Database Tables**: ✅ All required tables exist and have data.
+### user_accs
 
-2. **API Endpoints**:
-   - ✅ `/system/health` endpoint is working
-   - ❌ Other endpoints require authentication (returning 401)
+This table stores user account data.
 
-3. **Data Visibility**:
-   - ✅ Data is stored in the database
-   - ❌ Frontend may not be displaying the data correctly
+- id (SERIAL, primary key)
+- user_id (UUID, not null)
+- display_name (VARCHAR(100))
+- theme_preference (JSONB)
+- notification_preferences (JSONB)
+- created_at (TIMESTAMP WITH TIME ZONE, not null)
+- updated_at (TIMESTAMP WITH TIME ZONE, not null)
 
-## Remaining Tasks
+### settings
 
-1. **API Implementation**:
-   - Complete implementation of authentication endpoints
-   - Ensure all API endpoints return appropriate data
+This table stores application settings.
 
-2. **Frontend Integration**:
-   - Update frontend components to display data from the new tables
-   - Implement proper error handling in the frontend
+- id (SERIAL, primary key)
+- key (VARCHAR(100), not null)
+- value (JSONB, not null)
+- category (VARCHAR(50), not null)
+- created_at (TIMESTAMP WITH TIME ZONE, not null)
+- updated_at (TIMESTAMP WITH TIME ZONE, not null)
+- UNIQUE(category, key)
 
-3. **Authentication Flow**:
-   - Fix authentication issues in the health monitoring service
-   - Ensure proper token handling
+## Frontend Components
 
-4. **Regular Monitoring**:
-   - Set up regular health checks to run automatically
-   - Configure alerts for failed health checks
+The following frontend components have been updated or created:
 
-## How to Use the Health Monitoring Tools
+### UserSettings
 
-### Running the Health Check Script
+This component displays user account data and settings. It allows users to update their account settings.
 
-To check the health of the system, run:
+### SystemHealthMonitor
 
-```bash
-node system-health-monitor-check-fixed.js
-```
+This component displays system health check data. It shows the status of various endpoints and provides a summary of the system health.
 
-This will:
-1. Verify all required tables exist
-2. Insert test data if needed
-3. Check API endpoints
-4. Generate a summary report
+## System Health Monitoring
 
-### Starting the Server with Health Monitoring
+The system health monitor checks the status of various endpoints and saves the results to the database. It can be run periodically to monitor the health of the system.
 
-To start the server with health monitoring enabled, run:
+## How to Run
 
-```bash
-node run-app-with-missing-tables-final.js
-```
+1. Create the missing tables:
+   ```
+   node apply-missing-tables.js
+   ```
 
-This will:
-1. Create the required tables if they don't exist
-2. Start the server with health monitoring enabled
-3. Set up scheduled health checks
+2. Implement the missing API methods:
+   ```
+   node api-implementation-main.js
+   ```
+
+3. Update the frontend components:
+   ```
+   node update-frontend-components.js
+   ```
+
+4. Run the system health monitor check:
+   ```
+   node system-health-monitor-check.js
+   ```
+
+5. Run all fixes at once:
+   ```
+   node run-all-fixes.js
+   ```
 
 ## Troubleshooting
 
-If you encounter issues with the system health monitoring:
+If you encounter any issues, check the following:
 
-1. **Database Connection Issues**:
-   - Check the `.env` file for correct database credentials
-   - Verify the database server is running
-
-2. **API Endpoint Issues**:
-   - Check if the server is running
-   - Verify the API base URL is correct
-   - Check authentication requirements
-
-3. **Data Display Issues**:
-   - Verify the frontend is correctly configured to fetch data from the API
-   - Check browser console for errors
-
-## Conclusion
-
-The system health monitoring implementation has successfully created the required database tables and populated them with test data. The basic health check endpoint is working, but other endpoints require authentication. The frontend may need updates to correctly display the data from these tables.
-
-By following the recommendations in this document and using the provided tools, you can ensure the system remains healthy and issues are detected early.
+1. Make sure the database is running and accessible.
+2. Check the server logs for any errors.
+3. Check the browser console for any frontend errors.
+4. Run the system health monitor check to verify that the API endpoints are working.
+5. Verify that the frontend components are displaying data correctly.

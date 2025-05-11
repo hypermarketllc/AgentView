@@ -1,79 +1,49 @@
 /**
  * apply-missing-tables.js
  * 
- * This script applies the SQL in create-missing-tables.sql to create
- * the necessary tables for system health monitoring and error tracking.
+ * This script applies the SQL to create the missing tables.
  */
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import pg from 'pg';
 import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// PostgreSQL connection
-const { Pool } = pg;
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'crm_db',
-  user: process.env.POSTGRES_USER || 'crm_user',
-  password: process.env.POSTGRES_PASSWORD || 'your_strong_password_here'
+// Create a PostgreSQL client
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
+/**
+ * Apply the SQL to create the missing tables
+ */
 async function applyMissingTables() {
+  console.log('Applying SQL to create missing tables...');
+  
   try {
-    console.log('Connecting to database...');
+    // Read the SQL file
+    const sqlFilePath = path.join(process.cwd(), 'create-missing-tables.sql');
+    const sql = fs.readFileSync(sqlFilePath, 'utf8');
     
-    // Test connection
-    const res = await pool.query('SELECT NOW()');
-    console.log('Database connected:', res.rows[0].now);
+    // Connect to the database
+    const client = await pool.connect();
     
-    // Read SQL file
-    const sqlPath = path.join(__dirname, 'create-missing-tables.sql');
-    const sql = fs.readFileSync(sqlPath, 'utf8');
-    
-    console.log('Applying missing tables...');
-    
-    // Execute SQL
-    await pool.query(sql);
-    
-    console.log('Missing tables applied successfully!');
-    
-    // Verify tables were created
-    const tables = ['system_health_checks', 'system_errors', 'user_accs', 'settings'];
-    
-    for (const table of tables) {
-      const tableCheck = await pool.query(`
-        SELECT EXISTS (
-          SELECT FROM information_schema.tables 
-          WHERE table_schema = 'public' 
-          AND table_name = $1
-        )
-      `, [table]);
+    try {
+      // Execute the SQL
+      await client.query(sql);
       
-      if (tableCheck.rows[0].exists) {
-        console.log(`✅ Table '${table}' exists`);
-      } else {
-        console.error(`❌ Table '${table}' was not created`);
-      }
+      console.log('Missing tables created successfully.');
+    } finally {
+      client.release();
     }
-    
-    // Check if default settings were inserted
-    const settingsCount = await pool.query('SELECT COUNT(*) FROM settings');
-    console.log(`Settings table has ${settingsCount.rows[0].count} entries`);
-    
   } catch (error) {
-    console.error('Error applying missing tables:', error);
+    console.error('Error applying SQL to create missing tables:', error);
   } finally {
-    // Close pool
+    // Close the pool
     await pool.end();
   }
 }

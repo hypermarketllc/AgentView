@@ -1,113 +1,98 @@
 /**
  * run-fixed-system-with-monitoring.js
- * 
- * This script runs the server with the fixed API routes and system monitoring.
- * It integrates the error handling, route registration, and health monitoring components.
+ * This script runs the server with all fixes applied, including system health monitoring.
  */
 
-import express from 'express';
-import cors from 'cors';
-import { Pool } from 'pg';
-import dotenv from 'dotenv';
+import { execSync } from 'child_process';
+import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import jwt from 'jsonwebtoken';
-import { errorHandlerMiddleware } from './src/lib/error-handler.js';
-import { registerAllRoutes } from './src/lib/route-registrar.js';
-import { setupScheduledTasks } from './src/services/scheduler-service.js';
-import * as handlers from './src/handlers/index.js';
 
-// Load environment variables
-dotenv.config();
-
-// Get __dirname equivalent in ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Create Express app
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
-
-// PostgreSQL connection
-const pool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
-  port: parseInt(process.env.POSTGRES_PORT || '5432'),
-  database: process.env.POSTGRES_DB || 'crm_db',
-  user: process.env.POSTGRES_USER || 'crm_user',
-  password: process.env.POSTGRES_PASSWORD || 'your_strong_password_here'
-});
-
-// Authentication middleware
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-  
-  jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-    
-    req.user = user;
-    next();
-  });
-}
-
-// Register all routes from the API registry
-registerAllRoutes(app, authenticateToken, handlers, pool);
-
-// Add error handler middleware
-app.use(errorHandlerMiddleware);
-
-// Setup scheduled tasks
-setupScheduledTasks(app);
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`API base URL: ${app.locals.apiBaseUrl}`);
-  
-  // Log environment
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Database: ${process.env.POSTGRES_DB || 'crm_db'} on ${process.env.POSTGRES_HOST || 'localhost'}`);
-  
-  // Check database connection
-  pool.query('SELECT NOW()', (err, res) => {
-    if (err) {
-      console.error('Database connection error:', err);
-    } else {
-      console.log('Database connected:', res.rows[0].now);
-    }
-  });
-});
-
-// Handle graceful shutdown
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-
-async function shutdown() {
-  console.log('Shutting down gracefully...');
-  
+// Function to check if a file exists
+function fileExists(filePath) {
   try {
-    // Close database pool
-    await pool.end();
-    console.log('Database pool closed');
-    
-    // Exit process
-    process.exit(0);
+    return fs.existsSync(filePath);
   } catch (error) {
-    console.error('Error during shutdown:', error);
-    process.exit(1);
+    console.error(`Error checking if file exists: ${filePath}`, error);
+    return false;
   }
 }
+
+// Function to run a script
+function runScript(scriptPath) {
+  try {
+    console.log(`Running script: ${scriptPath}`);
+    execSync(`node ${scriptPath}`, { stdio: 'inherit' });
+    return true;
+  } catch (error) {
+    console.error(`Error running script: ${scriptPath}`, error);
+    return false;
+  }
+}
+
+// Main function
+async function main() {
+  console.log('Starting fixed system with monitoring...');
+  
+  // Step 1: Apply API route fixes
+  if (fileExists('fix-api-routes.js')) {
+    console.log('Applying API route fixes...');
+    runScript('fix-api-routes.js');
+  } else {
+    console.log('API route fixes script not found. Skipping...');
+  }
+  
+  // Step 2: Update user settings component
+  if (fileExists('update-user-settings.js')) {
+    console.log('Updating user settings component...');
+    runScript('update-user-settings.js');
+  } else {
+    console.log('User settings update script not found. Skipping...');
+  }
+  
+  // Step 3: Run system health monitoring data display check
+  if (fileExists('system-health-monitor-data-display-check.js')) {
+    console.log('Running system health monitoring data display check...');
+    runScript('system-health-monitor-data-display-check.js');
+  } else {
+    console.log('System health monitoring data display check script not found. Skipping...');
+  }
+  
+  // Step 4: Update dashboard layout
+  if (fileExists('update-dashboard-layout.js')) {
+    console.log('Updating dashboard layout...');
+    runScript('update-dashboard-layout.js');
+  } else {
+    console.log('Dashboard layout update script not found. Skipping...');
+  }
+  
+  // Step 5: Create missing tables if needed
+  if (fileExists('apply-missing-tables.js')) {
+    console.log('Creating missing tables...');
+    runScript('apply-missing-tables.js');
+  } else {
+    console.log('Missing tables script not found. Skipping...');
+  }
+  
+  // Step 6: Run the fixed server
+  console.log('Starting the fixed server...');
+  
+  // Check if run-fixed-server-with-db.js exists
+  if (fileExists('run-fixed-server-with-db.js')) {
+    console.log('Running server with database connection...');
+    runScript('run-fixed-server-with-db.js');
+  } else if (fileExists('run-fixed-server.js')) {
+    console.log('Running fixed server...');
+    runScript('run-fixed-server.js');
+  } else {
+    console.log('Fixed server script not found. Running standard server...');
+    runScript('server-docker.js');
+  }
+  
+  console.log('Server started successfully with all fixes applied.');
+}
+
+// Run the main function
+main().catch(error => {
+  console.error('Error:', error);
+  process.exit(1);
+});

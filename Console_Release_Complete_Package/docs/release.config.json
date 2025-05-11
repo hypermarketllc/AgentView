@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "tag": "initial-stable",
+  "env": "production",
+  "date": "2025-05-10",
+  "notes": "Initial full-system build with CI patches, error tracking, modular API, and role-based control."
+}

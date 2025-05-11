@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  app:
+    container_name: crm-app-with-error-logging
+    build:
+      context: ..
+      dockerfile: Console_Release_Complete_Package/Dockerfile.error-logging.fixed
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DOCKER_ENV=true
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=crm_db
+      - POSTGRES_USER=crm_user
+      - POSTGRES_PASSWORD=your_strong_password_here
+      - ERROR_LOGGING_ENABLED=true
+    depends_on:
+      - db
+    volumes:
+      - ../dist:/app/dist
+      - ../public:/app/public
+      - ./logs:/app/Console_Release_Complete_Package/logs
+    restart: unless-stopped
+
+  db:
+    container_name: crm-db
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=crm_db
+      - POSTGRES_USER=crm_user
+      - POSTGRES_PASSWORD=your_strong_password_here
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  pgadmin:
+    container_name: crm-pgadmin
+    image: dpage/pgadmin4
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@example.com
+      - PGADMIN_DEFAULT_PASSWORD=admin_password
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

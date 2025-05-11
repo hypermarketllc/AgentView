@@ -1,43 +1,35 @@
 /**
  * api-endpoints.js
  * 
- * Central configuration file for all API endpoints
- * All endpoint paths should be defined here to make updates easier
+ * This file defines the API endpoints for the application.
  */
 
 const API_ENDPOINTS = {
-  // Auth endpoints
-  AUTH: {
-    LOGIN: '/auth/login',
-    REGISTER: '/auth/register',
-    ME: '/auth/me',
-    LOGOUT: '/auth/logout',
-    REFRESH: '/auth/refresh',
+  // System health checks endpoints
+  SYSTEM_HEALTH_CHECKS: {
+    GET_ALL: '/api/system-health-checks',
+    GET_BY_ID: '/api/system-health-checks/:id',
+    CREATE: '/api/system-health-checks',
+    DELETE: '/api/system-health-checks/:id'
   },
   
-  // User settings endpoints
-  USER: {
-    SETTINGS: '/user/settings',
-    PASSWORD: '/user/password',
+  // User accounts endpoints
+  USER_ACCS: {
+    GET_ALL: '/api/user-accs',
+    GET_BY_ID: '/api/user-accs/:id',
+    CREATE: '/api/user-accs',
+    UPDATE: '/api/user-accs/:id',
+    DELETE: '/api/user-accs/:id'
   },
   
-  // System settings endpoints
+  // Settings endpoints
   SETTINGS: {
-    SYSTEM: '/settings/system',
-  },
-  
-  // Data endpoints
-  DATA: {
-    CARRIERS: '/carriers',
-    PRODUCTS: '/products',
-    POSITIONS: '/positions',
-    DEALS: '/deals',
-  },
-  
-  // System health endpoints
-  SYSTEM: {
-    HEALTH: '/health',
-    HEALTH_CHECKS: '/system-health-checks',
+    GET_ALL: '/api/settings',
+    GET_BY_CATEGORY: '/api/settings/:category',
+    GET_BY_KEY: '/api/settings/:category/:key',
+    CREATE: '/api/settings',
+    UPDATE: '/api/settings/:id',
+    DELETE: '/api/settings/:id'
   }
 };
 

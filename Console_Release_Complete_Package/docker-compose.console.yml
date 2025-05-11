@@ -1,0 +1,30 @@
+version: '3.8'
+services:
+  console-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.console
+    ports:
+      - "5005:5005"
+    env_file:
+      - .env.docker
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/api/console/status"]
+      interval: 10s
+      retries: 5
+
+  db:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: console
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
