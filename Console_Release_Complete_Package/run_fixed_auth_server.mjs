@@ -52,24 +52,32 @@ async function main() {
     console.log('Step 2: Applying frontend token handling fix...');
     await runScript(join(__dirname, 'fix-frontend-token.mjs'));
     
+    // Apply position token handling fix
+    console.log('Step 3: Applying position token handling fix...');
+    await runScript(join(__dirname, 'fix-position-token-handling.mjs'));
+    
     // Apply auth provider fix
-    console.log('Step 3: Applying auth provider fix...');
+    console.log('Step 4: Applying auth provider fix...');
     await runScript(join(__dirname, 'auth-modules/auth-provider-main.mjs'));
     
     // Fix frontend position_id null reference with enhanced version
-    console.log('Step 4: Applying enhanced frontend position_id fix...');
+    console.log('Step 5: Applying enhanced frontend position_id fix...');
     await runScript(join(__dirname, 'fix-frontend-position-id-enhanced.mjs'));
     
     // Apply user object structure normalizer
-    console.log('Step 5: Applying user object structure normalizer...');
+    console.log('Step 6: Applying user object structure normalizer...');
     await runScript(join(__dirname, 'fix-user-object-structure.mjs'));
     
-    // Apply position API compatibility fix
-    console.log('Step 6: Applying position API compatibility fix...');
-    await runScript(join(__dirname, 'fix-position-api-compatibility.mjs'));
+    // Update position permissions in the database
+    console.log('Step 7: Updating position permissions in the database...');
+    await runScript(join(__dirname, 'update-position-permissions.mjs'));
+    
+    // Apply hardcoded permissions fix
+    console.log('Step 8: Applying hardcoded permissions fix...');
+    await runScript(join(__dirname, 'fix-hardcoded-permissions.mjs'));
     
     // Then, start the server
-    console.log('Step 7: Starting authentication server...');
+    console.log('Step 9: Starting authentication server...');
     await runScript(join(__dirname, 'run_server_with_auth.mjs'));
     
   } catch (error) {
